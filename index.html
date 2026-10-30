@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>太鼓カードバトル - 第12弾</title>
+<link href="https://fonts.googleapis.com/css2?family=Yuji+Syuku&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: #111; --text: #f0f0f0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'FOT-大江戸勘亭流 Std E', 'Yuji Syuku', 'Hiragino Kaku Gothic ProN', serif; user-select: none; }
+  body { background-color: var(--bg); color: var(--text); overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+
+  #start-screen, #battle-screen { width: 100%; height: 100%; position: absolute; top: 0; left: 0; display: flex; flex-direction: column; }
+  #start-screen { justify-content: center; align-items: center; z-index: 1000; background: var(--bg); }
+  h1 { font-size: 3.5rem; color: #ffcc00; text-shadow: 0 0 10px #ff6600, 0 0 20px #cc0000; margin-bottom: 2rem; }
+  .mode-btn { background: linear-gradient(45deg, #ff512f, #dd2476); color: white; border: none; padding: 12px 35px; font-size: 1.3rem; margin: 10px; border-radius: 30px; cursor: pointer; transition: 0.1s; }
+  .mode-btn:hover { transform: scale(1.05); }
+
+  #battle-screen { display: none; background: radial-gradient(circle at center, #222 0%, #000 100%); }
+  .header { display: flex; justify-content: space-between; padding: 8px 25px; background: rgba(0,0,0,0.8); z-index: 10; border-bottom: 2px solid #444; }
+  .gauge-container { width: 45%; }
+  
+  .gauge-bar-bg { width: 100%; height: 28px; background: #222; border-radius: 15px; border: 2px solid #666; position: relative; box-shadow: inset 0 0 10px #000; margin-top: 3px; }
+  .gauge-bar-preview { position: absolute; left: 0; top: 0; height: 100%; background: rgba(0, 255, 255, 0.6); border-radius: 15px; width: 0%; z-index: 1; display: none; animation: gaugeBlink 0.6s infinite alternate; }
+  @keyframes gaugeBlink { 0% { opacity: 0.3; } 100% { opacity: 0.8; } }
+  .gauge-bar-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; border-radius: 15px; transition: width 0.5s; background: linear-gradient(180deg, #ff6666, #cc0000); z-index: 2; }
+  .tamashii-icon { position: absolute; right: -12px; top: -4px; width: 32px; height: 32px; background: radial-gradient(circle, #fff, #ffcc00); border: 2px solid #ff0000; border-radius: 50%; color: #ff0000; display: flex; justify-content: center; align-items: center; font-size: 1.1rem; box-shadow: 0 0 8px #ffcc00; z-index: 15; text-shadow: none;}
+  .gauge-clear-line { position: absolute; left: 80%; top: -2px; width: 3px; height: 28px; background: #fff; box-shadow: 0 0 5px #fff; z-index: 5; }
+  .gauge-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-shadow: 1px 1px 2px black; font-size: 1rem; z-index: 10; color: #fff; font-family: sans-serif; font-weight: bold; }
+
+  .arena { flex-grow: 1; position: relative; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+  
+  /* 左上のBPM表示 */
+  #bpm-target-display { position: absolute; top: 15px; left: 20px; font-size: 1.3rem; color: #00ffff; text-shadow: 0 0 8px #0088ff; z-index: 10; background: rgba(0,0,0,0.6); padding: 5px 10px; border-radius: 5px; border: 1px solid #0088ff; }
+
+  /* フィールドを上に移動＆サイズ縮小 */
+  .field-area { display: flex; gap: 320px; justify-content: center; align-items: center; margin-top: -60px; position: relative; width: 100%; }
+  .field-container { display: flex; flex-direction: column; align-items: center; gap: 10px; z-index: 5;}
+  .sub-slots { display: flex; gap: 8px; min-height: 120px; justify-content: center; align-items: flex-end; }
+  .field-slot { width: 110px; height: 160px; border: 2px dashed #666; border-radius: 6px; display: flex; justify-content: center; align-items: center; position: relative; color: #666; font-size: 1rem; background: rgba(0,0,0,0.5); }
+  .matchup-badge { position: absolute; top: -25px; left: 50%; transform: translateX(-50%); font-size: 1rem; padding: 2px 8px; border-radius: 8px; z-index: 40; display: none; white-space: nowrap; }
+
+  .ui-panel { background: rgba(0,0,0,0.8); padding: 8px 25px; border-radius: 30px; border: 2px solid #ffcc00; color: #ffcc00; font-size: 1.1rem; margin-top: 20px; z-index: 50; display: flex; gap: 15px; align-items: center; }
+  .action-btn { background: #ffcc00; color: #000; border: none; padding: 8px 20px; font-size: 1.1rem; border-radius: 15px; cursor: pointer; transition: 0.2s; }
+  .action-btn:disabled { background: #555; color: #aaa; cursor: not-allowed; }
+  .pass-btn { background: #444; color: #fff; border: 1px solid #777; }
+  .pass-btn:hover { background: #555; }
+
+  .hand-wrapper { position: absolute; bottom: 10px; width: 100%; display: flex; justify-content: space-around; z-index: 20; }
+  .hand-section { display: flex; flex-direction: column; align-items: center; }
+  .hand-label { font-size: 0.9rem; color: #ccc; margin-bottom: 3px; text-shadow: 0 0 3px #000; }
+  .hand-area { display: flex; gap: 5px; height: 170px; align-items: flex-end; }
+  
+  /* カードサイズ縮小 */
+  .card { width: 110px; height: 160px; background: #2a2a2a; border: 2px solid #444; border-radius: 8px; padding: 6px; display: flex; flex-direction: column; justify-content: space-between; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 8px rgba(0,0,0,0.8); position: relative; overflow: hidden; }
+  .card:not(.unplayable):hover { transform: translateY(-10px); z-index: 30; }
+  .card.selected { box-shadow: 0 0 15px #ffcc00 !important; transform: translateY(-15px); z-index: 35; border-color: #ffcc00 !important; }
+  .card.unplayable { opacity: 0.5; filter: grayscale(80%); } 
+  .card-sub { width: 85px; height: 120px; border-color: #aaa; background: #1a1a2e; overflow: visible; }
+  
+  /* 段位エフェクト＆キラキラアニメ */
+  .card.dan-gold { border: 2px solid #ffd700 !important; box-shadow: 0 0 10px rgba(255, 215, 0, 0.6); background: linear-gradient(135deg, #4aa00, #1a1a1a) !important; }
+  .card.dan-silver { border: 2px solid #c0c0c0 !important; box-shadow: 0 0 10px rgba(192, 192, 192, 0.6); background: linear-gradient(135deg, #2a2a3a, #1a1a1a) !important; }
+  .card.dan-red { border: 2px solid #ff3333 !important; box-shadow: 0 0 10px rgba(255, 51, 51, 0.6); background: linear-gradient(135deg, #3a1a1a, #1a1a1a) !important; }
+  .card.dan-rainbow { border: 2px solid transparent !important; background-image: linear-gradient(#1a1a1a, #1a1a1a), linear-gradient(45deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3) !important; background-origin: border-box !important; background-clip: padding-box, border-box !important; animation: rainbowGlow 2s linear infinite; }
+  
+  /* キラキラ光るエフェクト */
+  .card.dan-gold::before, .card.dan-silver::before, .card.dan-red::before, .card.dan-rainbow::before { content: ""; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%); transform: rotate(30deg); animation: shine 3s infinite; pointer-events: none; z-index: 1; }
+  @keyframes shine { 0% { left: -100%; } 20% { left: 100%; } 100% { left: 100%; } }
+  @keyframes rainbowGlow { 0% { filter: hue-rotate(0deg); } 100% { filter: hue-rotate(360deg); } }
+
+  .draw-anim { animation: drawSlide 0.4s ease-out forwards; }
+  @keyframes drawSlide { 0% { transform: translateY(80px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+  .slide-up-sub { animation: slideUpSub 0.5s ease-out forwards; }
+  @keyframes slideUpSub { 0% { transform: translateY(100px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+
+  /* テキストの最適化 */
+  .card-header { font-size: 0.65rem; display: flex; justify-content: space-between; border-bottom: 1px solid #555; padding-bottom: 2px; position: relative; z-index: 2; }
+  .card-rank { color: #ffcc00; font-family: sans-serif; font-weight: bold; }
+  .card-genre { border-radius: 3px; font-family: sans-serif; }
+  .card-title { font-size: 0.75rem; text-align: center; line-height: 1.1; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; margin: auto 0; font-family: sans-serif; position: relative; z-index: 2; }
+  .card-stats { font-size: 0.65rem; color: #aaa; text-align: center; background: rgba(0,0,0,0.5); border-radius: 3px; font-family: sans-serif; padding: 2px; position: relative; z-index: 2; }
+  .card-combo { font-size: 1.1rem; color: #ff5555; text-align: center; font-family: sans-serif; font-weight: bold; position: relative; z-index: 2; }
+
+  /* 🔎ツールチップ */
+  .search-icon { position: absolute; top: 2px; right: 2px; font-size: 0.8rem; background: #fff; border-radius: 50%; width: 16px; height: 16px; display: flex; justify-content: center; align-items: center; color: #000; }
+  .sub-tooltip { position: absolute; bottom: 105%; left: 50%; transform: translateX(-50%); width: 140px; background: rgba(0,0,0,0.9); border: 1px solid #ffcc00; padding: 5px; font-size: 0.75rem; color: #fff; border-radius: 5px; display: none; z-index: 100; font-family: sans-serif; text-align: left; }
+  .card-sub:hover .sub-tooltip { display: block; }
+
+  .type-1 { border-color: #ff5555; } .type-1 .card-genre { color: #ff5555; }
+  .type-2 { border-color: #5555ff; } .type-2 .card-genre { color: #5555ff; }
+  .type-3 { border-color: #55ff55; } .type-3 .card-genre { color: #55ff55; }
+  .type-4 { border-color: #bb55ff; } .type-4 .card-genre { color: #bb55ff; }
+  .type-5 { border-color: #ffaa00; } .type-5 .card-genre { color: #ffaa00; }
+
+  /* 中央バナー縮小 */
+  #center-banner { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.95); border: 2px solid #ffcc00; padding: 20px 25px; border-radius: 15px; text-align: center; z-index: 300; width: 420px; }
+  #banner-title { font-size: 2rem; color: white; margin-bottom: 8px; }
+  #banner-desc { font-size: 1.2rem; color: #ccc; margin-bottom: 15px; }
+  #play-mode-btns { display: flex; flex-direction: row; gap: 15px; justify-content: space-between; align-items: stretch; width: 100%; }
+  .play-btn-box { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+  .prob-detail { background: #111; border: 1px solid #444; border-radius: 6px; padding: 8px; font-size: 0.9rem; text-align: left; color: #ddd; line-height: 1.4; flex-grow: 1; font-family: sans-serif; font-weight: bold; }
+  .blink-text { animation: blinker 0.8s linear infinite; }
+  
+  .effect-text { position: absolute; font-size: 2.5rem; color: white; text-shadow: 0 0 10px red; pointer-events: none; z-index: 200; animation: floatUp 1.2s forwards; }
+  @keyframes floatUp { 0% { transform: translate(-50%, 0) scale(0.5); opacity: 0; } 20% { transform: translate(-50%, -20px) scale(1.2); opacity: 1; } 100% { transform: translate(-50%, -80px) scale(1); opacity: 0; } }
+  
+  #battle-log { position: absolute; right: 15px; top: 60px; width: 220px; max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.6); padding: 8px; font-size: 0.8rem; border: 1px solid #444; z-index: 10; font-family: sans-serif; }
+  #battle-log p { margin-bottom: 4px; border-bottom: 1px dashed #333; padding-bottom: 2px; }
+</style>
+</head>
+<body>
+
+  <div id="start-screen">
+    <h1>太鼓カードバトル</h1>
+    <p style="color:#aaa; margin-bottom:10px;">※画面をクリックすると音が鳴るようになります</p>
+    <button class="mode-btn" onclick="startGame(5000)">👑 かんたんモード (5,000点)</button>
+    <button class="mode-btn" onclick="startGame(10000)">👑 ふつうモード (10,000点)</button>
+    <button class="mode-btn" onclick="startGame(15000)">👑 おにモード (15,000点)</button>
+  </div>
+
+  <div id="battle-screen">
+    <div class="header">
+      <div class="gauge-container">
+        <div style="font-size:1.1rem; margin-bottom:3px; color:#ffcc00;">プレイヤー (YOU)</div>
+        <div class="gauge-bar-bg">
+          <div class="gauge-clear-line"></div>
+          <div class="gauge-bar-preview" id="p1-gauge-preview"></div>
+          <div class="gauge-bar-fill" id="p1-gauge-fill"><div class="tamashii-icon">魂</div></div>
+          <div class="gauge-text" id="p1-gauge-text">0 / 5000</div>
+        </div>
+      </div>
+      <div class="gauge-container" style="text-align: right;">
+        <div style="font-size:1.1rem; margin-bottom:3px; color:#0088ff;">CPU</div>
+        <div class="gauge-bar-bg" style="display: flex; justify-content: flex-end;">
+          <div class="gauge-clear-line" style="left: 20%;"></div>
+          <div class="gauge-bar-preview" id="cpu-gauge-preview" style="right:0; left:auto;"></div>
+          <div class="gauge-bar-fill" id="cpu-gauge-fill" style="background: linear-gradient(180deg, #6666ff, #0000cc); right:0; left:auto;"><div class="tamashii-icon" style="left:-15px; right:auto;">魂</div></div>
+          <div class="gauge-text" id="cpu-gauge-text">0 / 5000</div>
+        </div>
+      </div>
+    </div>
+    
+    <div id="battle-log"></div>
+
+    <div class="arena">
+      <div id="bpm-target-display"></div>
+      
+      <div class="field-area">
+        <div class="field-container" id="p1-field-container">
+          <div class="sub-slots" id="p1-sub-slots"></div>
+          <div class="field-slot" id="p1-slot"><div class="matchup-badge" id="p1-badge"></div>Player</div>
+        </div>
+
+        <div class="field-container" id="cpu-field-container">
+          <div class="sub-slots" id="cpu-sub-slots"></div>
+          <div class="field-slot" id="cpu-slot"><div class="matchup-badge" id="cpu-badge"></div>CPU</div>
+        </div>
+        
+        <div id="center-banner">
+          <div id="banner-title"></div>
+          <div id="banner-desc"></div>
+          <div id="play-mode-btns" style="display: none;">
+            <div class="play-btn-box">
+              <button class="action-btn" onclick="resolvePlayMode('manual')" style="padding: 10px; font-size: 1.2rem;">🥁 じぶんで演奏</button>
+              <div class="prob-detail" id="prob-detail-box"></div>
+            </div>
+            <div class="play-btn-box">
+              <button class="action-btn" id="auto-btn" onclick="resolvePlayMode('auto')" style="background: #444; color: white; padding: 10px; font-size: 1.2rem; border:2px solid #777;"></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ui-panel">
+        <span id="instruction-text">楽曲を選んでください</span>
+        <button id="action-btn" class="action-btn" disabled onclick="confirmPhase()">決定</button>
+        <button id="pass-btn" class="action-btn pass-btn" onclick="executePassPhase()">出さずにパス</button>
+      </div>
+
+      <div class="hand-wrapper">
+        <div class="hand-section">
+          <div class="hand-label">アイテム - Max 5</div>
+          <div class="hand-area" id="p1-sub-hand"></div>
+        </div>
+        <div class="hand-section">
+          <div class="hand-label">楽曲 - Max 7</div>
+          <div class="hand-area" id="p1-main-hand"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // --- Web Audio API (SE) ---
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  function playSE(type) {
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    
+    if (type === 'don') {
+      osc.type = 'sine'; osc.frequency.setValueAtTime(150, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.1);
+      gain.gain.setValueAtTime(1, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+    } else if (type === 'ka') {
+      osc.type = 'square'; osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.3, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.05);
+    } else if (type === 'select') {
+      osc.type = 'sine'; osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.2, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+    } else if (type === 'clear') {
+      osc.type = 'triangle'; osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.2);
+      gain.gain.setValueAtTime(0.2, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.4);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.4);
+    } else if (type === 'fail') {
+      osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, audioCtx.currentTime); osc.frequency.linearRampToValueAtTime(50, audioCtx.currentTime + 0.3);
+      gain.gain.setValueAtTime(0.2, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+    }
+  }
+  document.body.addEventListener('click', () => { if(audioCtx.state === 'suspended') audioCtx.resume(); });
+
+  const GENRE_MAP = { 1: '🔴 物量', 2: '🔵 技術', 3: '🟢 総合', 4: '🟣 局所難', 5: '🌀 特殊', "": "未設定" };
+  
+  const SONG_DATABASE = [
+    // SS (段位色指定)
+    { name: "Infinite Rebellion", rank: "SS", genre: 1, bpm: 300, combo: 1304, dan: "gold" },
+    { name: "彁(裏)", rank: "SS", genre: 5, bpm: 125, combo: 1070 },
+    { name: "銀の黎明か、黒の晶華か。(裏)", rank: "SS", genre: 1, bpm: 305, combo: 1501, dan: "rainbow" },
+    { name: "CRUXNAUT", rank: "SS", genre: 1, bpm: 303, combo: 1405 },
+    { name: "The Future of the 太鼓ドラム(裏)", rank: "SS", genre: 2, bpm: 276.5, combo: 1400 },
+    { name: "神竜 ～Shinryu～(裏)", rank: "SS", genre: 4, bpm: 300, combo: 1365, dan: "gold" },
+    { name: "憎悪と醜悪の花束(裏)", rank: "SS", genre: 2, bpm: 295, combo: 1170, dan: "gold" },
+    { name: "ダーク・エクス・マキナ♡", rank: "SS", genre: 4, bpm: 299, combo: 1333 },
+    { name: "ダーク・エクス・マキナ！", rank: "SS", genre: 4, bpm: 299, combo: 1333 },
+    { name: "第六天魔王(表)", rank: "SS", genre: 2, bpm: 300, combo: 1396, dan: "gold" },
+    { name: "第六天魔王(裏)", rank: "SS", genre: 1, bpm: 300, combo: 1582, dan: "gold" },
+    { name: "ダンガンノーツ(裏)", rank: "SS", genre: 1, bpm: 210, combo: 1167 },
+    { name: "Destination 2F29", rank: "SS", genre: 4, bpm: 241.6, combo: 995 },
+    { name: "ドンカマ2000", rank: "SS", genre: 5, bpm: 120, combo: 765 },
+    { name: "23時54分、陽の旅路へのプレリュード(裏)", rank: "SS", genre: 3, bpm: 300, combo: 1423, dan: "gold" },
+    { name: "Vixtory(裏)", rank: "SS", genre: 4, bpm: 243, combo: 1240, dan: "gold" },
+    { name: "vs.VIGVANGS(裏)", rank: "SS", genre: 3, bpm: 180, combo: 1438, dan: "gold" },
+    { name: "poxei♦︎DOON", rank: "SS", genre: 2, bpm: 300, combo: 1210, dan: "gold" },
+    { name: "幽玄ノ乱", rank: "SS", genre: 1, bpm: 300, combo: 1262, dan: "gold" },
+    { name: "Rough: CHA0Z", rank: "SS", genre: 5, bpm: 256, combo: 987 },
+    // 地力S+
+    { name: "!!!カオスタイム!!!", rank: "地力S+", genre: 5, bpm: 256, combo: 987 },
+    { name: "†††カオスタイム the DARK†††", rank: "地力S+", genre: 5, bpm: 256, combo: 1000 },
+    { name: "Calamity Fortune(裏)", rank: "地力S+", genre: 1, bpm: 200, combo: 1217 },
+    { name: "業 -善なる神とこの世の悪について-(裏)", rank: "地力S+", genre: 3, bpm: 190, combo: 1195 },
+    { name: "最果の魔法使い(裏)", rank: "地力S+", genre: 3, bpm: 210, combo: 1167 },
+    { name: "siren's eye", rank: "地力S+", genre: 3, bpm: 270, combo: 997 },
+    { name: "疾風怒濤(裏)", rank: "地力S+", genre: 2, bpm: 272, combo: 1083 },
+    { name: "Central Dogma Pt.1(裏)", rank: "地力S+", genre: 1, bpm: 284, combo: 1259 },
+    { name: "魑魅魍魎", rank: "地力S+", genre: 4, bpm: 200, combo: 1085, dan: "silver" },
+    { name: "とける(裏)", rank: "地力S+", genre: 2, bpm: 221, combo: 982 },
+    { name: "トロいか2000", rank: "地力S+", genre: 2, bpm: 156, combo: 872 },
+    { name: "Vrykolakas(裏)", rank: "地力S+", genre: 3, bpm: 210, combo: 1346, dan: "silver" },
+    { name: "ラ・モレーナ・クモナイ(裏)", rank: "地力S+", genre: 2, bpm: 200, combo: 1119 },
+    { name: "RAGING FIRE(裏)", rank: "地力S+", genre: 2, bpm: 300, combo: 1022 },
+    // 個人差S+
+    { name: "アンリミテッドゲームズ(裏)", rank: "個人差S+", genre: 1, bpm: 310, combo: 1210 },
+    { name: "Emma(裏)【達人】", rank: "個人差S+", genre: 1, bpm: 333, combo: 1074 },
+    { name: "CUT! into the FUTURE(裏)", rank: "個人差S+", genre: 1, bpm: 236, combo: 1338, dan: "silver" },
+    { name: "刻竜 ～Kokuryu～(裏)", rank: "個人差S+", genre: 1, bpm: 240, combo: 1172 },
+    { name: "!!!チルノのパーフェクトさんすうタイム!!!", rank: "個人差S+", genre: 5, bpm: 256, combo: 999 },
+    { name: "まださいたま2000", rank: "個人差S+", genre: 3, bpm: 280, combo: 999 },
+    { name: "4+1のそれぞれの未来(裏)", rank: "個人差S+", genre: 2, bpm: 255, combo: 1001 },
+    // 地力S
+    { name: "オペレート・ミー(裏)", rank: "地力S", genre: 1, bpm: 255, combo: 1337, dan: "silver" },
+    { name: "彁(表)", rank: "地力S", genre: 2, bpm: 125, combo: 692 },
+    { name: "仮想現実のテレスコープ(裏)", rank: "地力S", genre: 2, bpm: 250, combo: 1176 },
+    { name: "Coquette", rank: "地力S", genre: 3, bpm: 200, combo: 1022, dan: "silver" },
+    { name: "Synthesis.(裏)", rank: "地力S", genre: 2, bpm: 180, combo: 999 },
+    { name: "スーハー2000", rank: "地力S", genre: 4, bpm: 280, combo: 668 },
+    { name: "続・〆ドレー2000", rank: "地力S", genre: 3, bpm: "60-463", combo: 940 },
+    { name: "そして勇者は眠りにつく(裏)", rank: "地力S", genre: 1, bpm: 240, combo: 1316, dan: "silver" },
+    { name: "Taiko Drum Monster(裏)", rank: "地力S", genre: 2, bpm: 266, combo: 1044 },
+    { name: "Challengers", rank: "地力S", genre: 2, bpm: 250, combo: 753 },
+    { name: "≠MM", rank: "地力S", genre: 1, bpm: 252, combo: 1290 },
+    { name: "Hurtling Boys", rank: "地力S", genre: 4, bpm: 195, combo: 903 },
+    { name: "初音ミクの消失‐劇場版‐(裏)", rank: "地力S", genre: 2, bpm: 200, combo: 999 },
+    { name: "星屑ストラック(裏)", rank: "地力S", genre: 1, bpm: 220, combo: 1044, dan: "silver" },
+    { name: "魔宵月(裏)", rank: "地力S", genre: 2, bpm: 105, combo: 1013, dan: "rainbow" },
+    { name: "Lightning Boys(裏)", rank: "地力S", genre: 4, bpm: 225, combo: 1030, dan: "silver" },
+    { name: "LΔchesis", rank: "地力S", genre: 2, bpm: 376, combo: 1024 },
+    { name: "λ7708", rank: "地力S", genre: 5, bpm: 225, combo: 788 },
+    { name: "わら得る2000", rank: "地力S", genre: 2, bpm: 216, combo: 818 },
+    // 個人差S
+    { name: "Xa(裏)", rank: "個人差S", genre: 2, bpm: 290, combo: 904 },
+    { name: "Extreme End(裏)", rank: "個人差S", genre: 1, bpm: 300, combo: 1123 },
+    { name: "狂瀾怒濤(裏)", rank: "個人差S", genre: 1, bpm: 280, combo: 1108, dan: "silver" },
+    { name: "氷竜 ～Kooryu～(裏)", rank: "個人差S", genre: 3, bpm: 194, combo: 1059 },
+    { name: "Genesis Ray(裏)", rank: "個人差S", genre: 2, bpm: 140, combo: 985 },
+    { name: "双竜ノ乱", rank: "個人差S", genre: 2, bpm: 320, combo: 970 },
+    { name: "たいこの2000", rank: "個人差S", genre: 1, bpm: 224, combo: 1008 },
+    { name: "チャーリー ダッシュ！", rank: "個人差S", genre: 1, bpm: 240, combo: 858 },
+    { name: "Nivalis*Anima(裏)", rank: "個人差S", genre: 1, bpm: 257, combo: 1326, dan: "rainbow" },
+    { name: "Nosferatu(裏)", rank: "個人差S", genre: 1, bpm: 200, combo: 1353, dan: "silver" },
+    { name: "POLARiSNAUT", rank: "個人差S", genre: 1, bpm: 226, combo: 1234 },
+    { name: "UFO Swingin'", rank: "個人差S", genre: 2, bpm: 248, combo: 756 },
+    { name: "マルトーアンフェール(裏)", rank: "個人差S", genre: 2, bpm: 326, combo: 1226 },
+    { name: "モノクロボイス(裏)", rank: "個人差S", genre: 1, bpm: 240, combo: 1305 },
+    // 地力A+
+    { name: "アムピト◇リーテー", rank: "地力A+", genre: 2, bpm: 220, combo: 833 },
+    { name: "ln(guis・tics)", rank: "地力A+", genre: 3, bpm: 175, combo: 1076 },
+    { name: "ouroboros -twin stroke of the end-", rank: "地力A+", genre: 3, bpm: 188, combo: 1134 },
+    { name: "EXRiXiS(裏)", rank: "地力A+", genre: 3, bpm: 185, combo: 1015 },
+    { name: "χ談", rank: "地力A+", genre: 3, bpm: 270, combo: 951 },
+    { name: "カラフル", rank: "地力A+", genre: 4, bpm: 204, combo: 739 },
+    { name: "彼は誰時の誘惑(裏)", rank: "地力A+", genre: 2, bpm: 216, combo: 916 },
+    { name: "ココドコ？多分ドッカ島！(裏)", rank: "地力A+", genre: 2, bpm: 153, combo: 939 },
+    { name: "コネクトカラーズ", rank: "地力A+", genre: 2, bpm: 280, combo: 872, dan: "silver" },
+    { name: "GORI × GORI × SafaRI(裏)", rank: "地力A+", genre: 3, bpm: 272, combo: 1054, dan: "silver" },
+    { name: "万戈イム－一ノ十", rank: "地力A+", genre: 3, bpm: 220, combo: 999, dan: "silver" },
+    { name: "青天の黎明", rank: "地力A+", genre: 3, bpm: 222, combo: 1000 },
+    { name: "Central Dogma Pt.2", rank: "地力A+", genre: 2, bpm: 189, combo: 975 },
+    { name: "Taiko Drum Monster(表)", rank: "地力A+", genre: 2, bpm: 266, combo: 855 },
+    { name: "DEBSTEP!", rank: "地力A+", genre: 2, bpm: 130, combo: 888 },
+    { name: "Dreadnought(裏)", rank: "地力A+", genre: 3, bpm: 192, combo: 1075 },
+    { name: "Don't Stop the Game", rank: "地力A+", genre: 2, bpm: 175, combo: 846 },
+    { name: "HARDCOREノ心得", rank: "地力A+", genre: 3, bpm: 190, combo: 885, dan: "silver" },
+    { name: "幕末維新譚", rank: "地力A+", genre: 2, bpm: 260, combo: 1109 },
+    { name: "†バチ!ムチ!?マッスルキングダム†", rank: "地力A+", genre: 3, bpm: 220, combo: 961, dan: "silver" },
+    { name: "バブル・リップ・レイヴ・マシン", rank: "地力A+", genre: 2, bpm: 160, combo: 687 },
+    { name: "Hello, Worldooon!!(裏)", rank: "地力A+", genre: 2, bpm: 256, combo: 954 },
+    { name: "パン vs ごはん！ 大決戦！【達人】(裏)", rank: "地力A+", genre: 2, bpm: 240, combo: 824 },
+    { name: "ピッチフェイダ(裏)", rank: "地力A+", genre: 2, bpm: 180, combo: 866, dan: "silver" },
+    { name: "for Q(裏)", rank: "地力A+", genre: 3, bpm: 260, combo: 1111, dan: "silver" },
+    { name: "プチポチ", rank: "地力A+", genre: 2, bpm: 140, combo: 877 },
+    { name: "Behemoth", rank: "地力A+", genre: 3, bpm: 190, combo: 999 },
+    { name: "まるくてはやくてすさまじいリズム", rank: "地力A+", genre: 3, bpm: 192, combo: 978 },
+    { name: "モノクロームユートピア", rank: "地力A+", genre: 2, bpm: 112, combo: 682 },
+    { name: "ラパスの虹(裏)", rank: "地力A+", genre: 2, bpm: 156, combo: 909 },
+    { name: "resume:story(裏)", rank: "地力A+", genre: 1, bpm: 222, combo: 1042, dan: "silver" },
+    { name: "Remnath", rank: "地力A+", genre: 3, bpm: 187, combo: 1103 }
+  ];
+
+  const ITEM_DATABASE = [
+    { id: 'i1', name: 'でたらめ', desc: '相手全良-3%, 失敗+15%', tooltip: '相手の全良確率を少し下げ、失敗確率を大幅に上げる強力なデバフ。', type: 'debuff', code: 'detarame' },
+    { id: 'i2', name: 'きまぐれ', desc: '相手全良-2%, 失敗+10%', tooltip: '相手の全良確率とクリア確率を下げ、失敗に傾ける。', type: 'debuff', code: 'kimagure' },
+    { id: 'i3', name: 'HS2.0', desc: '魂ゲージ即座に+200', tooltip: '使用した瞬間、問答無用で自分の魂ゲージを+200回復する。', type: 'heal', code: 'hs2' }
+  ];
+
+  // 全て失敗倍率は 0.5倍 に変更
+  const ROULETTE_TABLE = {
+    "SS":       [ {n:"全良", p:3, m:4.0}, {n:"フルコン", p:15, m:2.0}, {n:"クリア", p:42, m:1.1}, {n:"失敗", p:40, m:0.5} ],
+    "地力S+":    [ {n:"全良", p:4, m:3.5}, {n:"フルコン", p:16, m:1.8}, {n:"クリア", p:42, m:1.1}, {n:"失敗", p:38, m:0.5} ],
+    "個人差S+":  [ {n:"全良", p:5, m:3.0}, {n:"フルコン", p:17, m:1.6}, {n:"クリア", p:42, m:1.1}, {n:"失敗", p:36, m:0.5} ],
+    "地力S":     [ {n:"全良", p:6, m:2.5}, {n:"フルコン", p:18, m:1.5}, {n:"クリア", p:42, m:1.1}, {n:"失敗", p:34, m:0.5} ],
+    "個人差S":   [ {n:"全良", p:7, m:2.2}, {n:"フルコン", p:19, m:1.4}, {n:"クリア", p:42, m:1.1}, {n:"失敗", p:32, m:0.5} ],
+    "地力A+":    [ {n:"全良", p:8, m:2.0}, {n:"フルコン", p:20, m:1.3}, {n:"クリア", p:42, m:1.1}, {n:"失敗", p:30, m:0.5} ],
+    "個人差A+":  [ {n:"全良", p:9, m:1.8}, {n:"フルコン", p:21, m:1.2}, {n:"クリア", p:42, m:1.1}, {n:"失敗", p:28, m:0.5} ]
+  };
+
+  const state = {
+    target: 5000, p1Score: 0, cpuScore: 0,
+    currentBpmMin: 0, currentBpmMax: 0,
+    p1: { mainDeck: [], subDeck: [], mainHand: [], subHand: [], selectedMain: null, selectedSubs: [], passed: false },
+    cpu: { mainDeck: [], subDeck: [], mainHand: [], subHand: [], selectedMain: null, selectedSubs: [], passed: false },
+    phase: 'SELECT_MAIN'
+  };
+
+  let playModeResolver = null;
+
+  function startGame(target) {
+    playSE('don');
+    state.target = target;
+    document.getElementById('start-screen').style.display = 'none';
+    document.getElementById('battle-screen').style.display = 'flex';
+    
+    ['p1', 'cpu'].forEach(p => {
+      let main = [...SONG_DATABASE].sort(() => Math.random() - 0.5).map(c => ({...c, uid: Math.random()}));
+      let sub = [];
+      // アイテム偏り防止のため等倍で多数投入
+      for(let i=0; i<15; i++) {
+        ITEM_DATABASE.forEach(item => sub.push({...item, uid: Math.random()}));
+      }
+      sub.sort(() => Math.random() - 0.5);
+      
+      state[p].mainDeck = main; state[p].subDeck = sub;
+      state[p].mainHand = state[p].mainDeck.splice(0, 5);
+      state[p].subHand = state[p].subDeck.splice(0, 3);
+      state[p].mainHand.forEach(c => c.isNew = true); state[p].subHand.forEach(c => c.isNew = true);
+    });
+    rollBpmTarget();
+  }
+
+  function rollBpmTarget() {
+    let n = Math.floor(Math.random() * 26 + 5) * 10, m = Math.floor(Math.random() * 6 + 5) * 10;
+    state.currentBpmMin = n; state.currentBpmMax = n + m;
+    document.getElementById('bpm-target-display').innerText = `【今ターンのBPM帯】 ${state.currentBpmMin} 〜 ${state.currentBpmMax}`;
+    updateUI();
+  }
+
+  function isCardPlayable(card) {
+    if (card.name.includes("〆ドレー")) return true;
+    if (String(card.bpm).includes('-')) {
+        const parts = String(card.bpm).split('-');
+        return (Number(parts[1]) >= state.currentBpmMin && Number(parts[0]) <= state.currentBpmMax);
+    }
+    const bpm = Number(card.bpm); return bpm >= state.currentBpmMin && bpm <= state.currentBpmMax;
+  }
+
+  function updateUI() {
+    renderHand('p1-main-hand', state.p1.mainHand, 'main');
+    renderHand('p1-sub-hand', state.p1.subHand, 'sub');
+    
+    const p1Percent = Math.min((state.p1Score / state.target) * 100, 100);
+    const cpuPercent = Math.min((state.cpuScore / state.target) * 100, 100);
+    
+    document.getElementById('p1-gauge-fill').style.width = `${p1Percent}%`;
+    document.getElementById('cpu-gauge-fill').style.width = `${cpuPercent}%`;
+    document.getElementById('p1-gauge-text').innerText = `${Math.floor(state.p1Score)} / ${state.target}`;
+    document.getElementById('cpu-gauge-text').innerText = `${Math.floor(state.cpuScore)} / ${state.target}`;
+  }
+
+  function renderHand(containerId, cards, type) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+    cards.forEach(card => {
+      const el = document.createElement('div');
+      if (card.isNew) { el.classList.add('draw-anim'); card.isNew = false; }
+
+      if (type === 'main') {
+        const playable = isCardPlayable(card);
+        const danClass = card.dan ? `dan-${card.dan}` : '';
+        el.className = `card type-${card.genre} ${state.p1.selectedMain?.uid === card.uid ? 'selected' : ''} ${playable ? '' : 'unplayable'} ${danClass}`;
+        el.innerHTML = `<div class="card-header"><span class="card-rank">${card.rank}</span><span class="card-genre">${GENRE_MAP[card.genre] || "未設定"}</span></div><div class="card-title">${card.name}</div><div class="card-stats">BPM: ${card.bpm}</div><div class="card-combo">${card.combo} <span style="font-size:0.6em;">コンボ</span></div>`;
+        el.onclick = () => { if(state.phase === 'SELECT_MAIN') { playSE('select'); state.p1.selectedMain = card; updatePhaseUI(); } };
+      } else {
+        const isSelected = state.p1.selectedSubs.find(c => c.uid === card.uid);
+        el.className = `card card-sub ${isSelected ? 'selected' : ''}`;
+        el.innerHTML = `<div class="search-icon">🔎</div><div class="card-title" style="color:#fff;">${card.name}</div><div class="card-stats">${card.desc}</div><div class="sub-tooltip">${card.tooltip}</div>`;
+        el.onclick = () => {
+          if(state.phase === 'SELECT_SUB') {
+            playSE('select');
+            if(isSelected) state.p1.selectedSubs = state.p1.selectedSubs.filter(c => c.uid !== card.uid);
+            else if(state.p1.selectedSubs.length < 2) state.p1.selectedSubs.push(card);
+            updatePhaseUI();
+          }
+        };
+      }
+      container.appendChild(el);
+    });
+  }
+
+  function updatePhaseUI() {
+    const text = document.getElementById('instruction-text');
+    const actionBtn = document.getElementById('action-btn');
+    const passBtn = document.getElementById('pass-btn');
+
+    if (state.phase === 'SELECT_MAIN') {
+      const sm = state.p1.selectedMain;
+      if (sm) {
+        if (isCardPlayable(sm)) { actionBtn.disabled = false; actionBtn.innerText = "楽曲決定"; passBtn.innerText = "これを捨ててパス"; } 
+        else { actionBtn.disabled = true; actionBtn.innerText = "BPM対象外"; passBtn.innerText = "これを捨てて交換"; }
+      } else {
+        actionBtn.disabled = true; actionBtn.innerText = "楽曲決定"; passBtn.innerText = "出さずにパス";
+      }
+    } else if (state.phase === 'SELECT_SUB') {
+      text.innerText = `アイテム選択（現在${state.p1.selectedSubs.length}枚）`;
+      actionBtn.disabled = false; actionBtn.innerText = "バトル開始！";
+      passBtn.innerText = "アイテムを使わずに開始";
+    }
+    updateUI();
+  }
+
+  function executePassPhase() {
+    playSE('don');
+    if (state.phase === 'SELECT_MAIN') {
+      if (state.p1.selectedMain) {
+        state.p1.mainHand = state.p1.mainHand.filter(c => c.uid !== state.p1.selectedMain.uid);
+        drawCard('p1', 'main', 7);
+        log(`YOUは ${state.p1.selectedMain.name} を捨てて引き直し、パスした。`);
+      } else {
+        log(`YOUは曲を出さずにパスした。`);
+      }
+      state.p1.selectedMain = null; state.p1.passed = true;
+      proceedToSubPhase();
+    } else if (state.phase === 'SELECT_SUB') {
+      state.p1.selectedSubs = [];
+      confirmPhase(); // バトルへ進む
+    }
+  }
+
+  function confirmPhase() {
+    playSE('don');
+    if (state.phase === 'SELECT_MAIN') {
+      state.p1.passed = false; proceedToSubPhase();
+    } else if (state.phase === 'SELECT_SUB') {
+      state.phase = 'BATTLE';
+      document.getElementById('instruction-text').innerText = "バトル進行中...";
+      document.getElementById('action-btn').disabled = true;
+      document.getElementById('pass-btn').disabled = true;
+      
+      if(state.cpu.subHand.length > 0 && Math.random() > 0.5) { state.cpu.selectedSubs.push(state.cpu.subHand[0]); state.cpu.subHand.shift(); }
+      state.p1.subHand = state.p1.subHand.filter(c => !state.p1.selectedSubs.includes(c));
+      updateUI();
+      executeBattle();
+    }
+  }
+
+  function proceedToSubPhase() {
+    state.phase = 'SELECT_SUB';
+    
+    let playableCpuCards = state.cpu.mainHand.filter(c => isCardPlayable(c));
+    if(playableCpuCards.length > 0) {
+      state.cpu.selectedMain = playableCpuCards[Math.floor(Math.random() * playableCpuCards.length)];
+      state.cpu.passed = false;
+      state.cpu.mainHand = state.cpu.mainHand.filter(c => c.uid !== state.cpu.selectedMain.uid);
+    } else {
+      if(state.cpu.mainHand.length > 0) {
+        const drop = state.cpu.mainHand[0]; state.cpu.mainHand.shift(); drawCard('cpu', 'main', 7);
+        log(`CPUは ${drop.name} を捨てて交換し、パスした。`);
+      }
+      state.cpu.selectedMain = null; state.cpu.passed = true;
+    }
+
+    if (!state.p1.passed && state.p1.selectedMain) {
+      state.p1.mainHand = state.p1.mainHand.filter(c => c.uid !== state.p1.selectedMain.uid);
+    }
+
+    document.getElementById('p1-slot').innerHTML = state.p1.passed ? '<div class="card type-1" style="background:rgba(0,0,0,0.5);"><div style="margin-top:50px; text-align:center;">PASS</div></div>' : '<div class="card type-1" style="background:rgba(0,0,0,0.5);"><div style="margin-top:50px; text-align:center;">SET</div></div>';
+    document.getElementById('cpu-slot').innerHTML = state.cpu.passed ? '<div class="card type-1" style="background:rgba(0,0,0,0.5);"><div style="margin-top:50px; text-align:center;">PASS</div></div>' : '<div class="card type-1" style="background:rgba(0,0,0,0.5);"><div style="margin-top:50px; text-align:center;">SET</div></div>';
+
+    updatePhaseUI();
+  }
+
+  function getEffectiveBPM(card) {
+    if (!card) return 0;
+    if (card.name.includes("〆ドレー")) return 9999;
+    if (String(card.bpm).includes('-')) return Math.max(...String(card.bpm).split('-').map(Number));
+    return Number(card.bpm) || 0;
+  }
+
+  async function showBanner(title, desc = '', duration = null) {
+    const banner = document.getElementById('center-banner');
+    document.getElementById('banner-title').innerHTML = title;
+    document.getElementById('banner-desc').innerHTML = desc;
+    document.getElementById('play-mode-btns').style.display = 'none';
+    banner.style.display = 'block';
+    if (duration) { await sleep(duration); banner.style.display = 'none'; }
+  }
+
+  function getCalculatedTable(card, debuffs) {
+    const table = JSON.parse(JSON.stringify(ROULETTE_TABLE[card.rank])); 
+    
+    // 段位バフ処理 (全良確率UP)
+    let danBonus = 0;
+    if (card.dan === 'red') danBonus = 10;
+    else if (card.dan === 'silver') danBonus = 15;
+    else if (card.dan === 'gold') danBonus = 20;
+    else if (card.dan === 'rainbow') danBonus = 30;
+
+    if (danBonus > 0) {
+      table[0].p += danBonus;
+      let reduce = danBonus / 3;
+      table[1].p = Math.max(0, table[1].p - reduce);
+      table[2].p = Math.max(0, table[2].p - reduce);
+      table[3].p = Math.max(0, 100 - table[0].p - table[1].p - table[2].p);
+    }
+
+    // デバフ処理
+    if (debuffs.includes('detarame')) { table[0].p = Math.max(0, table[0].p - 3); table[1].p = Math.max(0, table[1].p - 5); table[2].p = Math.max(0, table[2].p - 7); } 
+    else if (debuffs.includes('kimagure')) { table[0].p = Math.max(0, table[0].p - 2); table[1].p = Math.max(0, table[1].p - 3); table[2].p = Math.max(0, table[2].p - 5); }
+    table[3].p = Math.max(0, 100 - (table[0].p + table[1].p + table[2].p));
+    return table;
+  }
+
+  function askPlayMode(card, enemyDebuffs, elemMultiplier) {
+    return new Promise(resolve => {
+      playModeResolver = resolve;
+      document.getElementById('banner-title').innerHTML = '演奏スタイルを選択';
+      document.getElementById('banner-desc').innerHTML = '';
+      
+      const t = getCalculatedTable(card, enemyDebuffs);
+      const detailHtml = `<span style="color:#ffcc00">全良: ${t[0].p.toFixed(1)}% (x${t[0].m})</span><br><span style="color:#aaff00">フル: ${t[1].p.toFixed(1)}% (x${t[1].m})</span><br><span style="color:#00ffff">クリ: ${t[2].p.toFixed(1)}% (x${t[2].m})</span><br><span style="color:#ff5555">失敗: ${t[3].p.toFixed(1)}% (x${t[3].m})</span>`;
+      document.getElementById('prob-detail-box').innerHTML = detailHtml;
+
+      // 段位オート倍率ボーナス
+      const autoBase = card.dan ? 1.2 : 1.0;
+      const autoGain = Math.floor(card.combo * elemMultiplier * autoBase);
+      document.getElementById('auto-btn').innerHTML = `🤖 オート<br><span style="font-size:0.9rem; color:#ccc;">確実クリア (x${autoBase.toFixed(1)})</span><br><span class="blink-text" style="color:#00ffff; font-size:1.4rem; display:block; margin-top:5px; text-shadow:0 0 10px #00ffff;">+${autoGain} C</span>`;
+      
+      const prePercent = Math.min(((state.p1Score + autoGain) / state.target) * 100, 100);
+      const preEl = document.getElementById('p1-gauge-preview');
+      preEl.style.width = `${prePercent}%`;
+      preEl.style.display = 'block';
+
+      document.getElementById('play-mode-btns').style.display = 'flex';
+      document.getElementById('center-banner').style.display = 'block';
+    });
+  }
+
+  function resolvePlayMode(mode) {
+    playSE('ka');
+    document.getElementById('center-banner').style.display = 'none';
+    document.getElementById('p1-gauge-preview').style.display = 'none'; 
+    if(playModeResolver) playModeResolver(mode);
+  }
+
+  function setBadge(slotId, text, color) {
+    const badge = document.getElementById(slotId + '-badge');
+    badge.innerText = text; badge.style.background = color; badge.style.color = '#fff'; badge.style.display = 'block';
+  }
+
+  function renderSubSlots(player) {
+    const slots = document.getElementById(`${player}-sub-slots`);
+    slots.innerHTML = '';
+    state[player].selectedSubs.forEach(sub => {
+      const el = document.createElement('div');
+      el.className = 'card card-sub slide-up-sub';
+      el.innerHTML = `<div class="card-title" style="color:#fff;">${sub.name}</div><div class="card-stats">${sub.desc}</div>`;
+      slots.appendChild(el);
+    });
+  }
+
+  async function executeBattle() {
+    const p1M = state.p1.selectedMain, cpuM = state.cpu.selectedMain;
+    
+    renderSubSlots('p1'); renderSubSlots('cpu');
+
+    let itemUsed = false;
+    state.p1.selectedSubs.forEach(sub => { if(sub.code === 'hs2') { playSE('clear'); state.p1Score += 200; showEffect('+200', 'p1-slot', '#00ff00'); log('YOUのHS2.0発動！'); itemUsed = true; } });
+    state.cpu.selectedSubs.forEach(sub => { if(sub.code === 'hs2') { playSE('clear'); state.cpuScore += 200; showEffect('+200', 'cpu-slot', '#00ff00'); log('CPUのHS2.0発動！'); itemUsed = true; } });
+    if(itemUsed) { updateUI(); await sleep(1000); }
+
+    if (!p1M && !cpuM) {
+      playSE('fail');
+      await showBanner('両者パス！', 'ターンを終了します', 2000);
+      return resetTurn();
+    }
+    
+    playSE('don');
+    if (p1M) {
+      const danClass = p1M.dan ? `dan-${p1M.dan}` : '';
+      document.getElementById('p1-slot').innerHTML = `<div class="matchup-badge" id="p1-badge"></div><div class="card type-${p1M.genre} ${danClass}"><div class="card-header"><span class="card-rank">${p1M.rank}</span><span class="card-genre">${GENRE_MAP[p1M.genre]||"未設定"}</span></div><div class="card-title">${p1M.name}</div><div class="card-combo">${p1M.combo} <span style="font-size:0.6em;">コンボ</span></div></div>`;
+    }
+    if (cpuM) {
+      const danClass = cpuM.dan ? `dan-${cpuM.dan}` : '';
+      document.getElementById('cpu-slot').innerHTML = `<div class="matchup-badge" id="cpu-badge"></div><div class="card type-${cpuM.genre} ${danClass}"><div class="card-header"><span class="card-rank">${cpuM.rank}</span><span class="card-genre">${GENRE_MAP[cpuM.genre]||"未設定"}</span></div><div class="card-title">${cpuM.name}</div><div class="card-combo">${cpuM.combo} <span style="font-size:0.6em;">コンボ</span></div></div>`;
+    }
+    
+    await showBanner('楽曲オープン！', '', 1500);
+
+    let p1Elem = 1.0, cpuElem = 1.0;
+    if (p1M && cpuM && p1M.genre !== "" && cpuM.genre !== "") {
+      if((p1M.genre==1 && cpuM.genre==4) || (p1M.genre==4 && cpuM.genre==2) || (p1M.genre==2 && cpuM.genre==1)) { p1Elem=1.1; cpuElem=0.9; }
+      else if((cpuM.genre==1 && p1M.genre==4) || (cpuM.genre==4 && p1M.genre==2) || (cpuM.genre==2 && p1M.genre==1)) { cpuElem=1.1; p1Elem=0.9; }
+      if(p1Elem > 1.0) { setBadge('p1', '有利 (x1.1)', '#ff0000'); setBadge('cpu', '不利 (x0.9)', '#0000ff'); }
+      else if(cpuElem > 1.0) { setBadge('cpu', '有利 (x1.1)', '#ff0000'); setBadge('p1', '不利 (x0.9)', '#0000ff'); }
+      else { setBadge('p1', '等倍 (x1.0)', '#555'); setBadge('cpu', '等倍 (x1.0)', '#555'); }
+    } else if(p1M && cpuM) {
+      setBadge('p1', '等倍 (x1.0)', '#555'); setBadge('cpu', '等倍 (x1.0)', '#555');
+    }
+
+    let first = 'p1';
+    if(p1M && cpuM) { first = (getEffectiveBPM(cpuM) > getEffectiveBPM(p1M) || (getEffectiveBPM(cpuM) === getEffectiveBPM(p1M) && cpuM.combo > p1M.combo)) ? 'cpu' : 'p1'; } 
+    else if (!p1M) { first = 'cpu'; }
+    
+    if (p1M && cpuM) await showBanner(`先攻は <span style="color:#ffcc00">${first === 'p1' ? 'YOU' : 'CPU'}</span> !`, 'BPM/コンボ数比較', 1800);
+
+    let p1Debuffs = state.cpu.selectedSubs.map(s => s.code), cpuDebuffs = state.p1.selectedSubs.map(s => s.code);
+
+    if (first === 'p1') {
+      if(p1M) await processTurn('p1', p1M, p1Elem, p1Debuffs);
+      if(state.p1Score >= state.target) return endGame('YOU WIN!! (先攻逃げ切り)');
+      if(cpuM) await processTurn('cpu', cpuM, cpuElem, cpuDebuffs);
+    } else {
+      if(cpuM) await processTurn('cpu', cpuM, cpuElem, cpuDebuffs);
+      if(state.cpuScore >= state.target) return endGame('CPU WIN... (先攻逃げ切り)');
+      if(p1M) await processTurn('p1', p1M, p1Elem, p1Debuffs);
+    }
+
+    if(state.p1Score >= state.target || state.cpuScore >= state.target) {
+      if(state.p1Score >= state.target) endGame('YOU WIN!!');
+      else endGame('CPU WIN...');
+      return;
+    }
+    resetTurn();
+  }
+
+  async function processTurn(player, card, elemMultiplier, debuffs) {
+    const isP1 = player === 'p1';
+    
+    await showBanner(
+      `<span style="color:${isP1?'#ffcc00':'#0088ff'}">【${isP1 ? 'YOU' : 'CPU'} のターン】</span>`, 
+      `<span style="font-size:1.6rem;">${card.name}</span><br><span style="font-size:1.3rem; color:#ff5555; font-weight:bold; font-family:sans-serif;">${card.combo} コンボ</span>`, 
+      3000
+    );
+
+    let mode = isP1 ? await askPlayMode(card, debuffs, elemMultiplier) : (Math.random() > 0.15 ? 'manual' : 'auto');
+    let resultName = '', resultMulti = 1.0, color = '#fff';
+
+    if (mode === 'auto') {
+      resultName = 'オートクリア'; resultMulti = card.dan ? 1.2 : 1.0; color = '#00ffff'; playSE('don');
+    } else {
+      const table = getCalculatedTable(card, debuffs);
+      let rand = Math.random() * 100, acc = 0, res = table[3];
+      for(let i=0; i<4; i++) { acc += table[i].p; if(rand <= acc) { res = table[i]; break; } }
+      resultName = res.n; resultMulti = res.m;
+      color = resultName === '全良' ? '#ffcc00' : resultName === 'フルコン' ? '#aaff00' : resultName === 'クリア' ? '#00ffff' : '#ff5555';
+      if(resultName === '全良') playSE('clear');
+      else if(resultName === '失敗') playSE('fail');
+      else playSE('don');
+    }
+
+    await showBanner(`<span style="color:${color}; font-size:3.5rem; text-shadow: 0 0 15px ${color};">${resultName}</span>`, `倍率 x${resultMulti.toFixed(1)}`, 2000);
+
+    let gain = Math.floor(card.combo * elemMultiplier * resultMulti);
+    if(isP1) state.p1Score += gain; else state.cpuScore += gain;
+    
+    showEffect(`+${gain}`, isP1 ? 'p1-slot' : 'cpu-slot', '#00ff00');
+    log(`${isP1 ? 'YOU' : 'CPU'}: ${resultName} (+${gain}点)`);
+    updateUI();
+    await sleep(1000);
+  }
+
+  async function resetTurn() {
+    state.p1.selectedMain = null; state.p1.selectedSubs = []; state.p1.passed = false;
+    state.cpu.selectedMain = null; state.cpu.selectedSubs = []; state.cpu.passed = false;
+    
+    document.getElementById('p1-slot').innerHTML = '<div class="matchup-badge" id="p1-badge"></div>Player Field';
+    document.getElementById('cpu-slot').innerHTML = '<div class="matchup-badge" id="cpu-badge"></div>CPU Field';
+    document.getElementById('p1-sub-slots').innerHTML = '';
+    document.getElementById('cpu-sub-slots').innerHTML = '';
+    document.getElementById('p1-badge').style.display = 'none';
+    document.getElementById('cpu-badge').style.display = 'none';
+    document.getElementById('pass-btn').disabled = false;
+
+    log("=== ドロー＆お題更新 ===");
+    drawCard('p1', 'main', 7); drawCard('p1', 'sub', 5);
+    drawCard('cpu', 'main', 7); drawCard('cpu', 'sub', 5);
+    
+    rollBpmTarget();
+    state.phase = 'SELECT_MAIN';
+    updatePhaseUI();
+  }
+
+  function drawCard(player, type, limit) {
+    let hand = type === 'main' ? state[player].mainHand : state[player].subHand;
+    let deck = type === 'main' ? state[player].mainDeck : state[player].subDeck;
+    if (hand.length >= limit) {
+      if(player === 'p1' && confirm(`${type==='main'?'楽曲':'アイテム'}手札が上限(${limit}枚)です。一番古いカードを捨てて引きますか？`)) { 
+        hand.shift(); let c = deck.pop(); c.isNew = true; hand.push(c); 
+      }
+      else if(player === 'cpu') { hand.shift(); let c = deck.pop(); c.isNew = true; hand.push(c); }
+    } else { 
+      if(deck.length > 0) { let c = deck.pop(); c.isNew = true; hand.push(c); }
+    }
+  }
+
+  function showEffect(text, slotId, color = 'red') {
+    const slot = document.getElementById(slotId);
+    const rect = slot.getBoundingClientRect();
+    const el = document.createElement('div');
+    el.className = 'effect-text';
+    el.innerText = text;
+    el.style.color = color;
+    el.style.left = `${rect.left + rect.width/2}px`;
+    el.style.top = `${rect.top}px`;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1500);
+  }
+
+  function log(msg) { const box = document.getElementById('battle-log'); box.innerHTML += `<p>${msg}</p>`; box.scrollTop = box.scrollHeight; }
+  function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+  function endGame(msg) { playSE('clear'); setTimeout(() => { alert(`ゲーム終了: ${msg}`); location.reload(); }, 1500); }
+
+</script>
+</body>
+</html>
