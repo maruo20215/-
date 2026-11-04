@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>太鼓カードバトル (星10限定)</title>
+  <meta name="description" content="太鼓の達人の星10楽曲のみで構成された本格対戦カードゲーム。ルーム対戦（部屋作成・検索機能）、BPM指定、ジャンル相性、段位道場ギミック、多彩なアイテムカードを搭載！">
+  <link href="https://fonts.googleapis.com/css2?family=Yuji+Syuku&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+
+  <!-- スタート画面 -->
+  <div id="start-screen">
+    <div class="start-layout-container">
+      <!-- 左/中央メインパネル -->
+      <div class="start-main-panel">
+        <h1>太鼓カードバトル</h1>
+        <p style="color:#aaa; margin-bottom:15px; font-size:1rem;">※画面をタップすると音が鳴ります</p>
+
+        <div class="menu-section-title">【ルーム対戦】</div>
+        <div class="btn-group">
+          <button class="mode-btn room-create-btn" onclick="openCreateRoomModal()">🏠 部屋を作る (パスワード自動発行)</button>
+          <button class="mode-btn room-join-btn" onclick="openJoinRoomModal()">🔍 部屋をさがす (パスワード入力)</button>
+        </div>
+
+        <div class="menu-section-title">【ひとりでCPU対戦】</div>
+        <div style="display: flex; justify-content: center; margin-bottom: 8px;">
+          <button id="practice-mode-toggle-btn" class="practice-mode-btn" onclick="togglePracticeModeAction()">
+            <span>🥋 練習モード (レート保護):</span>
+            <span id="practice-status-badge" class="practice-indicator-badge practice-badge-off">OFF (通常変動)</span>
+          </button>
+        </div>
+        <div class="btn-group">
+          <button class="mode-btn" onclick="startGame(10000)">👑 かんたんモード (10,000点)</button>
+          <button class="mode-btn" onclick="startGame(15000)">👑 ふつうモード (15,000点)</button>
+          <button class="mode-btn" onclick="startGame(20000)">👑 むずかしいモード (20,000点)</button>
+        </div>
+
+        <div class="menu-section-title">【図鑑・情報】</div>
+        <div class="btn-group">
+          <button class="mode-btn list-btn" onclick="openCardList()">🃏 カード一覧を見る</button>
+          <button class="mode-btn rule-btn" onclick="openRule()">📜 ルール説明を見る</button>
+        </div>
+      </div>
+
+      <!-- 右側：ランク・レート表示ウィジェット（メーター付き） -->
+      <div class="start-profile-widget" id="start-profile-widget">
+        <div class="profile-widget-title">🥁 プレイヤー成績</div>
+
+        <!-- ランクカード -->
+        <div class="profile-card rank-card">
+          <div class="profile-card-header">
+            <span class="profile-card-title">🎖️ ランク</span>
+            <span class="profile-badge rank-badge" id="menu-rank-badge">RANK 1</span>
+          </div>
+          <div class="meter-wrapper">
+            <div class="meter-labels">
+              <span class="meter-label-left">次のランクまで</span>
+              <span class="meter-label-right" id="menu-rank-exp-text">0 / 3</span>
+            </div>
+            <div class="meter-track">
+              <div class="meter-fill rank-meter-fill" id="menu-rank-meter-fill" style="width: 0%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- レートカード -->
+        <div class="profile-card rate-card">
+          <div class="profile-card-header">
+            <span class="profile-card-title">⚡ レート</span>
+            <span class="profile-badge rate-badge" id="menu-rate-badge">C-</span>
+          </div>
+          <div class="meter-wrapper">
+            <div class="meter-labels">
+              <span class="meter-label-left">ポイント</span>
+              <span class="meter-label-right" id="menu-rate-pt-text">0 / 100</span>
+            </div>
+            <div class="meter-track">
+              <div class="meter-fill rate-meter-fill" id="menu-rate-meter-fill" style="width: 0%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 通算戦績 -->
+        <div class="profile-stats-summary" id="menu-stats-summary">
+          通算戦績: 0戦 0勝 (勝率 0%)
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ルームロビー待機画面 -->
+  <div id="room-screen">
+    <div class="room-card-box">
+      <h2 style="color: #ffcc00; font-size: 2rem;">🚪 対戦ルーム</h2>
+      <div id="room-name-display" style="font-size: 1.3rem; color: #fff;"></div>
+      
+      <div style="font-size: 0.95rem; color: #ccc; margin-top: 5px;">部屋パスワード（タップしてコピー）：</div>
+      <div class="room-pin-display" id="room-pw-display" onclick="copyRoomPassword()" title="クリックしてコピー"></div>
+      
+      <div style="margin: 8px 0;">
+        <span class="room-status-badge status-waiting" id="room-status-display">対戦相手を待っています...</span>
+      </div>
+
+      <!-- ホスト側操作：難易度選択して対戦開始 -->
+      <div id="host-difficulty-selection" style="margin-top: 10px;">
+        <div style="font-size: 1.1rem; color: #ffcc00; margin-bottom: 10px;">👑 目標スコア（難易度）を選んで開始：</div>
+        <div class="btn-group" style="margin: 0 auto;">
+          <button class="mode-btn" onclick="hostStartRoomGame(10000)">かんたん (10,000点)</button>
+          <button class="mode-btn" onclick="hostStartRoomGame(15000)">ふつう (15,000点)</button>
+          <button class="mode-btn" onclick="hostStartRoomGame(20000)">むずかしい (20,000点)</button>
+        </div>
+      </div>
+
+      <!-- ゲスト側表示：ホスト選択待ち -->
+      <div id="guest-waiting-message" style="display: none; margin-top: 15px; color: #00ffff; font-size: 1.2rem;" class="blink-text">
+        ホストが難易度を選択しています... しばらくお待ちください
+      </div>
+
+      <div style="margin-top: 20px;">
+        <button class="action-btn pass-btn" onclick="leaveRoomToTitle()">部屋を出る</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ルール説明画面 -->
+  <div id="rule-screen">
+    <div class="list-header">
+      <h2 style="color: #ffcc00;">ルール・仕様説明</h2>
+      <button class="action-btn pass-btn" onclick="closeRule()">戻る</button>
+    </div>
+    <div id="rule-content">
+      <h3>【基本ルール】</h3>
+      <p>・毎ターン提示される「BPM指定」に合う楽曲カードを出し合い、相手より先に目標スコア（魂ゲージ）に到達した方の勝利です。<br>
+      ・BPMが合わない場合は、「出さずにパス」するか、「手札を1枚捨ててパス（交換）」することができます。<br>
+      ・先攻/後攻は「カードのBPMが高い方」が先攻となります。BPMが同じ場合はコンボ数が多い方が先攻です。<br>
+      ・試合終了後も部屋は解散されず、ロビーへ戻って続けて対戦できます。</p>
+
+      <h3>【系統（ジャンル）の相性】</h3>
+      <p>カードの系統には相性があり、有利な場合は獲得スコアが「1.2倍」、不利な場合は「0.8倍」になります。<br>
+      ・🔴物量(1) は 🟣局所難(4) に有利<br>
+      ・🟣局所難(4) は 🔵技術(2) に有利<br>
+      ・🔵技術(2) は 🔴物量(1) に有利<br>
+      ※🟢総合(3) と 🌀特殊(5) は相性の影響を受けません。</p>
+
+      <h3>【段位カード（キラキラカード）】</h3>
+      <p>過去や現在の段位道場でボスを務めた曲は、強力なバフを持っています。<br>
+      ・<strong>オート演奏成功時の倍率</strong>: 虹枠: <strong>1.5倍</strong> / プラチナ枠: <strong>1.4倍</strong> / 金枠: <strong>1.3倍</strong> / 銀枠: <strong>1.2倍</strong> / 赤枠: <strong>1.1倍</strong> (通常枠: 1.0倍)<br>
+      ・<strong>全良成功確率ボーナス</strong>: 虹枠: <strong>+30%</strong> / プラチナ枠: <strong>+25%</strong> / 金枠: <strong>+20%</strong> / 銀枠: <strong>+15%</strong> / 赤枠: <strong>+10%</strong><br>
+      ※全良確率が増加した分、フルコンボ・クリア・失敗の確率は元の比率を保ったまま均等に調整（減少）されます（失敗確率が大きく下がる強力な効果です）。<br>
+      ・<strong>★キラキラボーナス</strong>: 全良・フルコンボ・クリアでスコアが増える際の倍率が<strong>＋0.2倍</strong>に強化されます。</p>
+
+      <h3>【レートシステム（CPU対戦限定）】</h3>
+      <p>・レートはCPU戦でのみ上下します。<br>
+      ・レート階級は <strong>C- → C → C+ → B- → B → B+ → A- → A → A+ → S → S+ → X</strong> の全12段階です。<br>
+      ・レート帯ごとにフォントとバッジがゴージャスに変化します（<strong>C帯: 銅 / B帯: 銀 / A帯: 金 / S帯: プラチナ / X帯: 虹</strong>）。<br>
+      ・<strong>昇格・降格の仕組み</strong>: 各帯とも0〜100ptで推移します。<strong>100ptを超えると次のレート帯の30ptからスタート</strong>し、逆に<strong>0ptを下回ると1つ下のレート帯の70ptに降格</strong>します（最下層のC-は0ptでストップ）。<br>
+      ・最高峰の「X帯」は<strong>ポイント上限が無制限</strong>となります！<br>
+      ・<strong>ふつうモード（基準）でのポイント変動</strong>：<br>
+      　・C帯 (C-, C, C+): 勝利 <strong>+30 pt</strong> / 敗北 <strong>-15 pt</strong><br>
+      　・B帯 (B-, B, B+): 勝利 <strong>+20 pt</strong> / 敗北 <strong>-12 pt</strong><br>
+      　・A帯 (A-, A, A+): 勝利 <strong>+15 pt</strong> / 敗北 <strong>-9 pt</strong><br>
+      　・S帯 (S): 勝利 <strong>+10 pt</strong> / 敗北 <strong>-7 pt</strong><br>
+      　・S+帯 (S+): 勝利 <strong>+7 pt</strong> / 敗北 <strong>-7 pt</strong><br>
+      　・X帯 (X): 勝利 <strong>+3 pt</strong> / 敗北 <strong>-5 pt</strong><br>
+      ・<strong>難易度による倍率補正</strong>（小数第1位で四捨五入）：<br>
+      　・かんたんモード: <strong>× 2/3</strong><br>
+      　・むずかしいモード: <strong>× 4/3</strong><br>
+      ・<strong>⚠️ 試合中断時のペナルティ</strong>: 対戦途中で「中断」した場合、<strong>敗北扱い</strong>となります。レートは現在の階級に応じたポイントがマイナスされ（A帯なら-9ptなど、モード補正適用）、0pt未満になると降格します（中断した試合は敗北として通算戦績に加算）。※中断時はランクは変動しません。<br>
+      ・<strong>🥋 練習モード</strong>: メニュー画面で「練習モード (レート保護)」をONにすると、レートが一切変動しなくなります。また、練習モードでの対戦は勝敗・中断問わず<strong>通算戦績に一切加算されません</strong>（安全にお試し対戦可能）。</p>
+
+      <h3>【ランクシステム（CPU戦・オンライン戦共通）】</h3>
+      <p>・ランクはCPU戦・オンラインルーム戦・練習戦でポイントが加算されます。<br>
+      ・ランクは「1」から始まり、最大「30」まで昇格可能です（ランク30到達後はポイントが無制限に蓄積）。<br>
+      ・次のランクに昇格するために必要なポイントは、初項3、公差2の等差数列（ランク1→2は3pt、2→3は5pt、3→4は7pt...、ランクR→R+1は 2R+1 pt）で増えていきます。<br>
+      ・<strong>試合終了時の獲得ポイント</strong>：<br>
+      　・かんたんモード: 勝利 <strong>+4 pt</strong> / 敗北 <strong>+1 pt</strong><br>
+      　・ふつうモード: 勝利 <strong>+6 pt</strong> / 敗北 <strong>+2 pt</strong><br>
+      　・むずかしいモード: 勝利 <strong>+8 pt</strong> / 敗北 <strong>+3 pt</strong><br>
+      ・※試合を中断した場合はランクポイントの変動はありません（維持）。</p>
+
+      <h3>【難易度帯別（全18段階）の確率分布・倍率・期待値一覧】</h3>
+      <p>・F（最も簡単）からSS（最難関）まで18段階の等差設定です（※個人差Fは存在しないため除外）。<br>
+      ・1000コンボのカードを想定した場合、オート演奏では1000点増えますが、じぶんで演奏するとハイリスク・ハイリターンになります。<br>
+      ・じぶんで演奏した時の期待値は、F帯で<strong>約1020点</strong>、難易度が上がるにつれて少しずつ高くなり、SS帯では<strong>約1122点</strong>になります。<br>
+      ・全良とフルコンボの差が大きく設定されており、全良達成時のボーナスが極めて強力です。<br>
+      ・失敗時の減点倍率はF帯の<strong>-1.0倍</strong>からSS帯の<strong>-0.5倍</strong>まで段階的に緩和されます。</p>
+
+      <div class="prob-table-wrapper">
+        <table class="prob-table">
+          <thead>
+            <tr>
+              <th>難易度帯</th>
+              <th>全良 (確率 / 倍率)</th>
+              <th>フルコン (確率 / 倍率)</th>
+              <th>クリア (確率 / 倍率)</th>
+              <th>失敗 (確率 / 倍率)</th>
+              <th>期待値 (1000C時)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>SS</strong></td><td style="color:#ffcc00">3.0% (x5.30)</td><td style="color:#aaff00">10.0% (x3.85)</td><td style="color:#00ffff">25.0% (x3.55)</td><td style="color:#ff5555">62.0% (x-0.50)</td><td style="color:#ffcc00; font-weight:bold;">1122 点</td></tr>
+            <tr><td><strong>S+</strong> (地力S+)</td><td style="color:#ffcc00">4.3% (x5.09)</td><td style="color:#aaff00">11.2% (x3.48)</td><td style="color:#00ffff">25.6% (x3.19)</td><td style="color:#ff5555">58.9% (x-0.53)</td><td style="color:#ffcc00; font-weight:bold;">1113 点</td></tr>
+            <tr><td><strong>個人差S+</strong></td><td style="color:#ffcc00">5.6% (x4.88)</td><td style="color:#aaff00">12.4% (x3.16)</td><td style="color:#00ffff">26.2% (x2.88)</td><td style="color:#ff5555">55.8% (x-0.56)</td><td style="color:#ffcc00; font-weight:bold;">1107 点</td></tr>
+            <tr><td><strong>S</strong> (地力S)</td><td style="color:#ffcc00">6.9% (x4.66)</td><td style="color:#aaff00">13.5% (x2.89)</td><td style="color:#00ffff">26.8% (x2.62)</td><td style="color:#ff5555">52.8% (x-0.59)</td><td style="color:#ffcc00; font-weight:bold;">1102 点</td></tr>
+            <tr><td><strong>個人差S</strong></td><td style="color:#ffcc00">8.2% (x4.45)</td><td style="color:#aaff00">14.7% (x2.64)</td><td style="color:#00ffff">27.4% (x2.38)</td><td style="color:#ff5555">49.7% (x-0.62)</td><td style="color:#ffcc00; font-weight:bold;">1097 点</td></tr>
+            <tr><td><strong>A+</strong> (地力A+)</td><td style="color:#ffcc00">9.5% (x4.24)</td><td style="color:#aaff00">15.9% (x2.43)</td><td style="color:#00ffff">27.9% (x2.17)</td><td style="color:#ff5555">46.7% (x-0.65)</td><td style="color:#ffcc00; font-weight:bold;">1091 点</td></tr>
+            <tr><td><strong>個人差A+</strong></td><td style="color:#ffcc00">10.8% (x4.03)</td><td style="color:#aaff00">17.1% (x2.23)</td><td style="color:#00ffff">28.5% (x1.98)</td><td style="color:#ff5555">43.6% (x-0.68)</td><td style="color:#ffcc00; font-weight:bold;">1084 点</td></tr>
+            <tr><td><strong>A</strong> (地力A)</td><td style="color:#ffcc00">12.1% (x3.82)</td><td style="color:#aaff00">18.2% (x2.06)</td><td style="color:#00ffff">29.1% (x1.82)</td><td style="color:#ff5555">40.6% (x-0.71)</td><td style="color:#ffcc00; font-weight:bold;">1079 点</td></tr>
+            <tr><td><strong>個人差A</strong></td><td style="color:#ffcc00">13.4% (x3.61)</td><td style="color:#aaff00">19.4% (x1.90)</td><td style="color:#00ffff">29.7% (x1.67)</td><td style="color:#ff5555">37.5% (x-0.74)</td><td style="color:#ffcc00; font-weight:bold;">1071 点</td></tr>
+            <tr><td><strong>B</strong> (地力B)</td><td style="color:#ffcc00">14.6% (x3.39)</td><td style="color:#aaff00">20.6% (x1.77)</td><td style="color:#00ffff">30.3% (x1.55)</td><td style="color:#ff5555">34.5% (x-0.76)</td><td style="color:#ffcc00; font-weight:bold;">1067 点</td></tr>
+            <tr><td><strong>個人差B</strong></td><td style="color:#ffcc00">15.9% (x3.18)</td><td style="color:#aaff00">21.8% (x1.65)</td><td style="color:#00ffff">30.9% (x1.44)</td><td style="color:#ff5555">31.4% (x-0.79)</td><td style="color:#ffcc00; font-weight:bold;">1062 点</td></tr>
+            <tr><td><strong>C</strong> (地力C)</td><td style="color:#ffcc00">17.2% (x2.97)</td><td style="color:#aaff00">22.9% (x1.54)</td><td style="color:#00ffff">31.5% (x1.34)</td><td style="color:#ff5555">28.4% (x-0.82)</td><td style="color:#ffcc00; font-weight:bold;">1053 点</td></tr>
+            <tr><td><strong>個人差C</strong></td><td style="color:#ffcc00">18.5% (x2.76)</td><td style="color:#aaff00">24.1% (x1.45)</td><td style="color:#00ffff">32.1% (x1.26)</td><td style="color:#ff5555">25.3% (x-0.85)</td><td style="color:#ffcc00; font-weight:bold;">1049 点</td></tr>
+            <tr><td><strong>D</strong> (地力D)</td><td style="color:#ffcc00">19.8% (x2.55)</td><td style="color:#aaff00">25.3% (x1.38)</td><td style="color:#00ffff">32.6% (x1.19)</td><td style="color:#ff5555">22.3% (x-0.88)</td><td style="color:#ffcc00; font-weight:bold;">1046 点</td></tr>
+            <tr><td><strong>個人差D</strong></td><td style="color:#ffcc00">21.1% (x2.34)</td><td style="color:#aaff00">26.5% (x1.30)</td><td style="color:#00ffff">33.2% (x1.12)</td><td style="color:#ff5555">19.2% (x-0.91)</td><td style="color:#ffcc00; font-weight:bold;">1035 点</td></tr>
+            <tr><td><strong>E</strong> (地力E)</td><td style="color:#ffcc00">22.4% (x2.12)</td><td style="color:#aaff00">27.6% (x1.25)</td><td style="color:#00ffff">33.8% (x1.08)</td><td style="color:#ff5555">16.2% (x-0.94)</td><td style="color:#ffcc00; font-weight:bold;">1033 点</td></tr>
+            <tr><td><strong>個人差E</strong></td><td style="color:#ffcc00">23.7% (x1.91)</td><td style="color:#aaff00">28.8% (x1.20)</td><td style="color:#00ffff">34.4% (x1.04)</td><td style="color:#ff5555">13.1% (x-0.97)</td><td style="color:#ffcc00; font-weight:bold;">1029 点</td></tr>
+            <tr><td><strong>F</strong> (地力F)</td><td style="color:#ffcc00">25.0% (x1.70)</td><td style="color:#aaff00">30.0% (x1.15)</td><td style="color:#00ffff">35.0% (x1.00)</td><td style="color:#ff5555">10.0% (x-1.00)</td><td style="color:#ffcc00; font-weight:bold;">1020 点</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>【サブカード（アイテム）の新仕様】</h3>
+      <p>・サブカードは<strong>1ターンにつき最大1枚</strong>のみ使用できます。<br>
+      ・サブカードの補充は<strong>2ターンに1度</strong>行われます。</p>
+
+      <h3>【新アイテム＆注目アイテム】</h3>
+      <p>・<strong>★4 公式マイバチ（蒼/朱/山吹）</strong>: それぞれ技術(2)、総合(3)、物量(1)のカードを出した時のみ使用可能。全良確率+15%、フルコン確率+15%！<br>
+      ・<strong>★4 かんぺき</strong>: フルコン・全良時の倍率がそれぞれ+2.0倍になる超絶強化。ただし失敗時の倍率は-0.7倍に悪化！<br>
+      ・<strong>★4 代行</strong>: そのターンだけ相手が獲得したポイントを自分にもそのまま加算！<br>
+      ・<strong>★4 ドロン</strong>: 自分のゲージが相手に3ターン見えなくなり（数値とゲージのたまり具合が完全隠蔽）、さらに相手のオート演奏を3ターン封印！<br>
+      ・<strong>★3 あべこべ</strong>: 自分の手札2枚を選択し、相手の手札2枚（ランダム）と交換！<br>
+      ・<strong>★1/2/3 演奏速度×1.1 / ×1.2 / ×1.3</strong>: スコア増加量をそれぞれ1.1倍、1.2倍、1.3倍にブースト！<br>
+      ・<strong>★1 バチお先生</strong>: フルコンボ確率を+14%上昇！</p>
+
+      <h3>【★5 段位道場の特殊仕様】</h3>
+      <p>アイテム「段位道場」は、自分の場に出した曲が『画像の段位3曲目』である場合のみ使用できる超強力カードです。<br>
+      使用した場合、BPMにかかわらず**強制的に先攻**となります。<br>
+      さらにコンボ数が「段位の3曲合計」に上書きされ、通常のルーレットが『段位専用の超絶ルーレット』に変化します。<br>
+      <strong>※オートプレイは不可となります（じぶんで演奏のみ）。</strong><br>
+      <strong>※失敗したときは減点されません（0点維持）。</strong><br>
+      ・赤(十段): 全良 <strong>5% (x2.0)</strong> / 金合格 <strong>15% (x1.5)</strong> / 赤合格 <strong>25% (x1.0)</strong> / 不合格 55% (x0.0 減点なし)<br>
+      ・銀(名人等): 全良 <strong>3% (x2.5)</strong> / 金合格 <strong>10% (x1.9)</strong> / 赤合格 <strong>20% (x1.4)</strong> / 不合格 67% (x0.0 減点なし)<br>
+      ・達人(金/虹): 全良 <strong>1% (x5.0)</strong> / 金合格 <strong>なし (達人は金合格＝全良のためなし)</strong> / 赤合格 <strong>10% (x3.0)</strong> / 不合格 89% (x0.0 減点なし)<br>
+      ・<strong>🛡️ 妨害アイテム完全無効化</strong>: 段位道場を使用しているターンは、相手からの確率変動系の妨害アイテム（でたらめ、きまぐれ等）を完全に無効化します（妨害を食らいません）。</p>
+    </div>
+  </div>
+
+  <!-- カード一覧画面 -->
+  <div id="card-list-screen">
+    <div class="list-header">
+      <div class="list-header-top">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <h2 style="color: #ffcc00; margin: 0;">カード一覧 (全182曲)</h2>
+          <span id="card-count-badge" style="color: #00ffff; font-size: 0.95rem; background: rgba(0,255,255,0.1); padding: 2px 10px; border-radius: 12px; border: 1px solid #00ffff;">182曲</span>
+        </div>
+        <button class="action-btn pass-btn" onclick="closeCardList()">戻る</button>
+      </div>
+      <div class="list-filters-bar">
+        <input type="text" id="search-card-input" class="search-bar-input" placeholder="曲名で検索..." oninput="renderCardList()">
+        <select id="sort-select" class="filter-select" onchange="renderCardList()">
+          <option value="rank">並び替え: 難易度順</option>
+          <option value="genre">並び替え: 系統順</option>
+          <option value="combo">並び替え: コンボ数順</option>
+          <option value="rarity">並び替え: レア度順</option>
+        </select>
+        <select id="rank-filter-select" class="filter-select" onchange="renderCardList()">
+          <option value="all">難易度: 全て</option>
+          <option value="SS">SS</option>
+          <option value="S+">S+ (地力S+)</option>
+          <option value="個人差S+">個人差S+</option>
+          <option value="S">S (地力S)</option>
+          <option value="個人差S">個人差S</option>
+          <option value="A+">A+ (地力A+)</option>
+          <option value="個人差A+">個人差A+</option>
+          <option value="A">A (地力A)</option>
+          <option value="個人差A">個人差A</option>
+          <option value="B">B (地力B)</option>
+          <option value="個人差B">個人差B</option>
+          <option value="C">C (地力C)</option>
+          <option value="個人差C">個人差C</option>
+          <option value="D">D (地力D)</option>
+          <option value="個人差D">個人差D</option>
+          <option value="E">E (地力E)</option>
+          <option value="個人差E">個人差E</option>
+          <option value="F">F (地力F)</option>
+        </select>
+        <select id="genre-filter-select" class="filter-select" onchange="renderCardList()">
+          <option value="all">系統: 全て</option>
+          <option value="1">🔴 物量(1)</option>
+          <option value="2">🔵 技術(2)</option>
+          <option value="3">🟢 総合(3)</option>
+          <option value="4">🟣 局所難(4)</option>
+          <option value="5">🌀 特殊(5)</option>
+        </select>
+        <select id="dan-filter-select" class="filter-select" onchange="renderCardList()">
+          <option value="all">枠: 全て</option>
+          <option value="rainbow">🌈 虹枠</option>
+          <option value="platinum">💎 プラチナ枠</option>
+          <option value="gold">🥇 金枠</option>
+          <option value="silver">🥈 銀枠</option>
+          <option value="red">🥉 赤枠</option>
+          <option value="normal">⚪ 通常枠</option>
+        </select>
+      </div>
+    </div>
+    <div id="card-list-container"></div>
+  </div>
+
+  <!-- バトル画面 -->
+  <div id="battle-screen">
+    <div id="battle-practice-badge" style="display:none; position:absolute; top:8px; left:50%; transform:translateX(-50%); background:rgba(56,239,125,0.25); border:1.5px solid #38ef7d; color:#38ef7d; padding:2px 14px; border-radius:15px; font-size:0.8rem; font-weight:bold; z-index:120; pointer-events:none;">🥋 練習中 (レート保護)</div>
+    <div class="header">
+      <div class="gauge-container">
+        <div style="font-size:1.1rem; margin-bottom:3px; color:#ffcc00;">プレイヤー (YOU)</div>
+        <div class="gauge-bar-bg">
+          <div class="gauge-clear-line"></div>
+          <div class="gauge-bar-preview" id="p1-gauge-preview"></div>
+          <div class="gauge-bar-fill" id="p1-gauge-fill"><div class="tamashii-icon">魂</div></div>
+          <div class="gauge-text" id="p1-gauge-text">0 / 5000</div>
+        </div>
+      </div>
+      <button class="surrender-btn" onclick="surrender()">中断</button>
+      <div class="gauge-container" style="text-align: right;">
+        <div style="font-size:1.1rem; margin-bottom:3px; color:#0088ff;">相手 (CPU/P2)</div>
+        <div class="gauge-bar-bg" style="display: flex; justify-content: flex-end;">
+          <div class="gauge-clear-line" style="left: 20%;"></div>
+          <div class="gauge-bar-preview" id="cpu-gauge-preview" style="right:0; left:auto;"></div>
+          <div class="gauge-bar-fill" id="cpu-gauge-fill" style="background: linear-gradient(180deg, #6666ff, #0000cc); right:0; left:auto;"><div class="tamashii-icon" style="left:-15px; right:auto;">魂</div></div>
+          <div class="gauge-text" id="cpu-gauge-text">0 / 5000</div>
+        </div>
+      </div>
+    </div>
+    
+    <div id="battle-log"></div>
+
+    <div class="arena">
+      <div id="bpm-target-display"></div>
+      <div id="type-chart">相性: 🔴(物量) ＞ 🟣(局所難) ＞ 🔵(技術) ＞ 🔴(物量)<br>※🟢(総合), 🌀(特殊) は相性なし</div>
+      <div id="deck-count-display">山札: 182枚</div>
+      
+      <div class="field-area">
+        <div class="field-container" id="p1-field-container">
+          <div class="sub-slots" id="p1-sub-slots"></div>
+          <div class="field-slot" id="p1-slot"><div class="matchup-badge" id="p1-badge"></div>Player Field</div>
+        </div>
+
+        <div class="field-container" id="cpu-field-container">
+          <div class="sub-slots" id="cpu-sub-slots"></div>
+          <div class="field-slot" id="cpu-slot"><div class="matchup-badge" id="cpu-badge"></div>Opponent Field</div>
+        </div>
+        
+        <div id="center-banner">
+          <div id="banner-content">
+            <div id="banner-title"></div>
+            <div id="banner-desc"></div>
+            <div id="play-mode-btns" style="display: none;">
+              <div class="play-btn-box">
+                <button class="action-btn" onclick="resolvePlayMode('manual')" style="padding: 10px; font-size: 1.2rem;">🥁 じぶんで演奏</button>
+                <div class="prob-detail" id="prob-detail-box"></div>
+              </div>
+              <div class="play-btn-box">
+                <button class="action-btn" id="auto-btn" onclick="resolvePlayMode('auto')" style="background: #444; color: white; padding: 10px; font-size: 1.2rem; border:2px solid #777;"></button>
+              </div>
+            </div>
+          </div>
+          <div id="fukkatsu-event-box" style="display: none;">
+            <h2 id="fukkatsu-title" style="color:white; font-size:1.8rem; margin-bottom:20px;"></h2>
+            <button id="retry-btn" class="action-btn" style="font-size:1.3rem;">🔄 復活連打でやり直す！</button><br>
+            <button id="keep-btn" class="action-btn pass-btn" style="margin-top:10px;">そのままにする</button>
+          </div>
+          <div id="bomb-event-box" style="display: none;">
+            <h2 style="color:red; font-size:2.5rem; text-shadow: 0 0 20px red;">爆弾音符！連打しろ！</h2>
+            <div id="bomb-timer" style="font-size:4rem; color:yellow;">5.0</div>
+            <button id="renda-btn">ドン！</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="ui-panel">
+        <span id="instruction-text" style="font-size: 0.9em;">楽曲を選んでください</span>
+        <button id="action-btn" class="action-btn" disabled onclick="confirmPhase()">決定</button>
+        <button id="pass-btn" class="action-btn pass-btn" onclick="executePassPhase()">出さずにパス</button>
+      </div>
+
+      <div class="hand-wrapper">
+        <div class="hand-section">
+          <div class="hand-label">アイテム - Max 5 (1ターン1枚) <span id="sub-charge-badge" class="sub-charge-badge"></span></div>
+          <div class="hand-area" id="p1-sub-hand"></div>
+        </div>
+        <div class="hand-section">
+          <div class="hand-label">楽曲 - Max 7</div>
+          <div class="hand-area" id="p1-main-hand"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 部屋作成モーダル -->
+  <div id="create-room-modal" class="custom-popup-overlay">
+    <div class="custom-popup-box">
+      <h3 style="color:#ffcc00; font-size:1.6rem; margin-bottom:12px;">🏠 対戦部屋を作る</h3>
+      <p style="color:#ccc; font-size:0.95rem; margin-bottom:12px;">部屋名を入力してください（5桁の合言葉/PINが自動発行されます）</p>
+      <input id="create-room-name-input" class="custom-input-field" type="text" maxlength="20" placeholder="部屋の名前 (例: ドン勝部屋)" />
+      <div id="create-room-error" style="color:#ff4444; font-size:0.9rem; margin:6px 0; display:none;"></div>
+      <div style="display:flex; gap:12px; justify-content:center; margin-top:15px;">
+        <button class="mode-btn room-create-btn" onclick="confirmCreateRoom()" style="padding:10px 24px; font-size:1rem; margin:0;">作成する</button>
+        <button class="action-btn pass-btn" onclick="closeCreateRoomModal()" style="padding:10px 20px; font-size:1rem; margin:0;">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 部屋検索・入室モーダル -->
+  <div id="join-room-modal" class="custom-popup-overlay">
+    <div class="custom-popup-box" style="max-width:480px;">
+      <h3 style="color:#00ffff; font-size:1.6rem; margin-bottom:12px;">🔍 部屋をさがす・入室</h3>
+      <p style="color:#ccc; font-size:0.95rem; margin-bottom:10px;">5桁のパスワードを入力するか、募集中の部屋を選んでください</p>
+      
+      <input id="join-room-pin-input" class="custom-input-field pin-input" type="text" maxlength="5" placeholder="5桁の数字 (例: 12345)" />
+      <div id="join-room-error" style="color:#ff4444; font-size:0.9rem; margin:6px 0; display:none;"></div>
+
+      <div style="display:flex; gap:12px; justify-content:center; margin:12px 0;">
+        <button class="mode-btn room-join-btn" onclick="confirmJoinRoom()" style="padding:10px 24px; font-size:1rem; margin:0;">入室する</button>
+        <button class="action-btn pass-btn" onclick="closeJoinRoomModal()" style="padding:10px 20px; font-size:1rem; margin:0;">閉じる</button>
+      </div>
+
+      <div style="margin-top:15px; border-top:1px solid #444; padding-top:12px; text-align:left;">
+        <div style="font-size:0.95rem; color:#ffcc00; font-weight:bold; margin-bottom:8px;">📡 募集中の部屋一覧（自動検出）:</div>
+        <div id="active-rooms-container" style="max-height:160px; overflow-y:auto;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- カスタムダイアログ・モーダル -->
+  <div id="custom-modal-overlay">
+    <div id="custom-modal-box">
+      <h3 id="modal-title">確認</h3>
+      <div id="modal-message"></div>
+      <div id="modal-buttons"></div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

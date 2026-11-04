@@ -2,15 +2,23 @@ export type DanTier = 'red' | 'silver' | 'gold' | 'platinum' | 'rainbow';
 
 export type SongRank = 
   | 'SS' 
-  | '地力S+' 
+  | 'S+' | '地力S+' 
   | '個人差S+' 
-  | '地力S' 
+  | 'S' | '地力S' 
   | '個人差S' 
-  | '地力A+' 
+  | 'A+' | '地力A+' 
   | '個人差A+' 
-  | '地力A' 
+  | 'A' | '地力A' 
   | '個人差A' 
-  | '地力B';
+  | 'B' | '地力B' 
+  | '個人差B' 
+  | 'C' | '地力C' 
+  | '個人差C' 
+  | 'D' | '地力D' 
+  | '個人差D' 
+  | 'E' | '地力E' 
+  | '個人差E' 
+  | 'F' | '地力F';
 
 export type GenreId = 1 | 2 | 3 | 4 | 5 | '';
 

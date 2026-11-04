@@ -4,7 +4,9 @@ import {
   ItemCard, 
   RouletteResult, 
   PlayerState,
-  ItemCode
+  ItemCode,
+  DanTier,
+  RouletteItem
 } from './types';
 import { SONG_DATABASE, DAN_COMBO_DATA } from './data/songs';
 import { ITEM_DATABASE } from './data/items';
@@ -26,7 +28,7 @@ export function createInitialPlayerState(): PlayerState {
 export function createInitialGameState(): GameState {
   return {
     turn: 0,
-    target: 5000,
+    target: 10000,
     p1Score: 0,
     cpuScore: 0,
     currentBpmMin: 0,
@@ -96,19 +98,28 @@ export function canUseItem(item: ItemCard, selectedMain: SongCard | null): boole
   return true;
 }
 
-export function getCalculatedTable(card: SongCard, buffs: ItemCode[], debuffs: ItemCode[]) {
-  const baseTable = ROULETTE_TABLE[card.rank] || ROULETTE_TABLE["地力B"];
-  const table = JSON.parse(JSON.stringify(baseTable));
+export function getAutoPlayMultiplier(dan?: DanTier): number {
+  if (dan === 'rainbow') return 1.5;
+  if (dan === 'platinum') return 1.4;
+  if (dan === 'gold') return 1.3;
+  if (dan === 'silver') return 1.2;
+  if (dan === 'red') return 1.1;
+  return 1.0;
+}
+
+export function getCalculatedTable(card: SongCard, buffs: ItemCode[], debuffs: ItemCode[]): RouletteItem[] {
+  const baseTable = ROULETTE_TABLE[card.rank] || ROULETTE_TABLE["地力B"] || ROULETTE_TABLE["B"];
+  const table = JSON.parse(JSON.stringify(baseTable)) as RouletteItem[];
 
   let pBonus = 0;
   let fcBonus = 0;
 
-  // キラキラカードの全良ボーナス
-  if (card.dan === 'red') pBonus += 10;
-  else if (card.dan === 'silver') pBonus += 15;
-  else if (card.dan === 'gold') pBonus += 20;
+  // キラキラカードの全良ボーナス (虹+30%, プラチナ+25%, 金+20%, 銀+15%, 赤+10%)
+  if (card.dan === 'rainbow') pBonus += 30;
   else if (card.dan === 'platinum') pBonus += 25;
-  else if (card.dan === 'rainbow') pBonus += 30;
+  else if (card.dan === 'gold') pBonus += 20;
+  else if (card.dan === 'silver') pBonus += 15;
+  else if (card.dan === 'red') pBonus += 10;
 
   // アイテムによる全良ボーナス
   if (buffs.includes('keita')) pBonus += 15;
@@ -134,31 +145,48 @@ export function getCalculatedTable(card: SongCard, buffs: ItemCode[], debuffs: I
     fcBonus += 14;
   }
 
-  // 相手からのデバフ
-  if (debuffs.includes('detarame')) {
-    table[0].p = Math.max(0, table[0].p - 3);
-    table[1].p = Math.max(0, table[1].p - 5);
-    table[2].p = Math.max(0, table[2].p - 7);
-  } else if (debuffs.includes('kimagure')) {
-    table[0].p = Math.max(0, table[0].p - 2);
-    table[1].p = Math.max(0, table[1].p - 3);
-    table[2].p = Math.max(0, table[2].p - 5);
+  // 相手からのデバフ (段位道場発動時は妨害デバフを完全無効化)
+  const isDanidoujouActive = buffs.includes('danidoujou') && !!DAN_COMBO_DATA[card.name];
+  if (!isDanidoujouActive) {
+    if (debuffs.includes('detarame')) {
+      table[0].p = Math.max(0, table[0].p - 3);
+      table[1].p = Math.max(0, table[1].p - 5);
+      table[2].p = Math.max(0, table[2].p - 7);
+    } else if (debuffs.includes('kimagure')) {
+      table[0].p = Math.max(0, table[0].p - 2);
+      table[1].p = Math.max(0, table[1].p - 3);
+      table[2].p = Math.max(0, table[2].p - 5);
+    }
   }
 
+  // 全良ボーナス反映: フルコン、クリア、失敗それぞれの元の割合を維持したまま調整
   if (pBonus > 0) {
-    table[0].p += pBonus;
-    const reduce = pBonus / 3;
-    table[1].p = Math.max(0, table[1].p - reduce);
-    table[2].p = Math.max(0, table[2].p - reduce);
+    const targetPerfect = Math.min(99, table[0].p + pBonus);
+    table[0].p = targetPerfect;
+    const remaining = 100 - targetPerfect;
+    const otherSum = table[1].p + table[2].p + table[3].p;
+    if (otherSum > 0) {
+      const factor = remaining / otherSum;
+      table[1].p = +(table[1].p * factor).toFixed(2);
+      table[2].p = +(table[2].p * factor).toFixed(2);
+      table[3].p = +(table[3].p * factor).toFixed(2);
+    }
   }
 
+  // フルコンボーナス反映: クリアと失敗の割合を維持して減少
   if (fcBonus > 0) {
-    table[1].p += fcBonus;
-    const reduceFc = fcBonus / 2;
-    table[2].p = Math.max(0, table[2].p - reduceFc);
+    const targetFC = Math.min(100 - table[0].p - 1, table[1].p + fcBonus);
+    table[1].p = targetFC;
+    const remainingAfterFC = 100 - (table[0].p + targetFC);
+    const otherSumAfterFC = table[2].p + table[3].p;
+    if (otherSumAfterFC > 0) {
+      const factor = remainingAfterFC / otherSumAfterFC;
+      table[2].p = +(table[2].p * factor).toFixed(2);
+      table[3].p = +(table[3].p * factor).toFixed(2);
+    }
   }
 
-  table[3].p = Math.max(0, 100 - (table[0].p + table[1].p + table[2].p));
+  table[3].p = Math.max(0, +(100 - (table[0].p + table[1].p + table[2].p)).toFixed(2));
   return table;
 }
 
@@ -169,7 +197,7 @@ export function executeRoulette(
   mode: 'manual' | 'auto',
   onSkip?: () => void
 ): RouletteResult {
-  // 段位道場発動時
+  // 段位道場発動時 (相手からの確率妨害アイテム無効化・専用倍率適用)
   if (buffs.includes('danidoujou') && DAN_COMBO_DATA[card.name]) {
     const dt = getDanidoujouTable(card);
     if (dt) {
@@ -185,10 +213,6 @@ export function executeRoulette(
       }
 
       let multi = res.m;
-      // キラキラカードの全良、フルコンボ、クリアしたときの増える倍率を＋0.2倍
-      if (card.dan && (res.n === '全良' || res.n.includes('合格'))) {
-        multi += 0.2;
-      }
       // かんぺき効果
       if (buffs.includes('kanpeki')) {
         if (res.n === '全良' || res.n === '金合格') {
@@ -208,7 +232,7 @@ export function executeRoulette(
   }
 
   if (mode === 'auto') {
-    let autoMulti = card.dan ? 1.4 : 1.0; // 段位カードは元々の1.2倍に+0.2倍ボーナスで1.4倍
+    const autoMulti = getAutoPlayMultiplier(card.dan);
     return { 
       resultName: 'オートクリア', 
       resultMulti: autoMulti, 

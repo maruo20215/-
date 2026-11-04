@@ -287,6 +287,43 @@ h1 {
   padding-left: 10px;
 }
 
+.prob-table-wrapper {
+  overflow-x: auto;
+  margin: 12px 0 20px 0;
+  border-radius: 8px;
+  border: 1px solid #444;
+  background: #181822;
+}
+
+.prob-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.prob-table th {
+  background: #252538;
+  color: #ffcc00;
+  padding: 8px 12px;
+  border-bottom: 2px solid #ffcc00;
+  font-weight: bold;
+}
+
+.prob-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid #333;
+}
+
+.prob-table tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.prob-table tr:hover {
+  background: rgba(255, 204, 0, 0.12);
+}
+
 /* バトル画面 */
 #battle-screen {
   display: none;
@@ -1351,3 +1388,295 @@ h1 {
     justify-content: space-between;
   }
 }
+
+/* スタート画面の2カラムレイアウト */
+.start-layout-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 35px;
+  max-width: 1050px;
+  width: 100%;
+  padding: 15px;
+}
+
+.start-main-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* プレイヤー成績ウィジェット */
+.start-profile-widget {
+  background: rgba(20, 20, 35, 0.85);
+  border: 1px solid rgba(255, 204, 0, 0.35);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), inset 0 0 20px rgba(255, 204, 0, 0.05);
+  border-radius: 20px;
+  padding: 22px 24px;
+  width: 330px;
+  min-width: 290px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  backdrop-filter: blur(8px);
+}
+
+.profile-widget-title {
+  font-size: 1.25rem;
+  color: #ffcc00;
+  text-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
+  font-weight: bold;
+  text-align: center;
+  letter-spacing: 1px;
+  border-bottom: 1px solid rgba(255, 204, 0, 0.2);
+  padding-bottom: 8px;
+}
+
+.profile-card {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.profile-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 204, 0, 0.4);
+}
+
+.profile-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.profile-card-title {
+  font-size: 1rem;
+  color: #e0e0e0;
+  font-weight: bold;
+}
+
+.profile-badge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.95rem;
+  font-weight: bold;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  letter-spacing: 0.5px;
+}
+
+.rank-badge {
+  background: linear-gradient(135deg, #f7971e, #ffd200);
+  color: #2b1100;
+  box-shadow: 0 0 12px rgba(255, 210, 0, 0.4);
+}
+
+.rate-badge {
+  font-family: 'FOT-大江戸勘亭流 Std E', 'Yuji Syuku', sans-serif;
+  letter-spacing: 1px;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  transition: all 0.3s ease;
+}
+
+/* 銅 (C帯: C-, C, C+) */
+.tier-bronze {
+  background: linear-gradient(135deg, #8a481c 0%, #d48b59 40%, #a85827 70%, #5e2a09 100%) !important;
+  color: #fff6ee !important;
+  border: 1.5px solid #d48b59 !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 4px rgba(212, 139, 89, 0.6) !important;
+  box-shadow: 0 0 10px rgba(184, 115, 51, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.35) !important;
+}
+
+/* 銀 (B帯: B-, B, B+) */
+.tier-silver {
+  background: linear-gradient(135deg, #64748b 0%, #f8fafc 45%, #94a3b8 70%, #ffffff 100%) !important;
+  color: #0f172a !important;
+  border: 1.5px solid #e2e8f0 !important;
+  font-weight: 900 !important;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.9), 0 0 6px rgba(248, 250, 252, 0.8) !important;
+  box-shadow: 0 0 14px rgba(203, 213, 225, 0.7), inset 0 1px 3px rgba(255, 255, 255, 0.9) !important;
+}
+
+/* 金 (A帯: A-, A, A+) */
+.tier-gold {
+  background: linear-gradient(135deg, #b48006 0%, #fff066 35%, #eab308 65%, #fff9a6 100%) !important;
+  color: #2b1700 !important;
+  border: 2px solid #fef08a !important;
+  font-weight: 900 !important;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.9), 0 0 8px rgba(250, 204, 21, 0.8) !important;
+  box-shadow: 0 0 18px rgba(234, 179, 8, 0.85), inset 0 1px 3px rgba(255, 255, 255, 0.95) !important;
+}
+
+/* プラチナ (S帯: S, S+) */
+.tier-platinum {
+  background: linear-gradient(135deg, #38bdf8 0%, #e0f2fe 35%, #7dd3fc 65%, #ffffff 100%) !important;
+  color: #034f75 !important;
+  border: 2px solid #bae6fd !important;
+  font-weight: 900 !important;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.95), 0 0 10px rgba(56, 189, 248, 0.9) !important;
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.85), inset 0 1px 4px rgba(255, 255, 255, 1) !important;
+  animation: platinum-shimmer 3s ease-in-out infinite;
+}
+
+@keyframes platinum-shimmer {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.15) drop-shadow(0 0 8px #38bdf8); }
+}
+
+/* 虹 (X帯: X) */
+.tier-rainbow, .rate-rainbow {
+  background: linear-gradient(90deg, #ff007f, #ff7700, #ffe600, #00ff88, #00ffff, #7928ca, #ff007f) !important;
+  background-size: 300% 300% !important;
+  color: #ffffff !important;
+  border: 2px solid #ffffff !important;
+  font-weight: 900 !important;
+  text-shadow: 0 0 6px #ffffff, 0 0 12px #ff007f, 0 0 20px #00ffff !important;
+  box-shadow: 0 0 24px rgba(255, 0, 128, 0.9), inset 0 1px 4px rgba(255, 255, 255, 1) !important;
+  animation: rainbow-flow 3s linear infinite !important;
+}
+
+@keyframes rainbow-flow {
+  0% { background-position: 0% 50%; filter: hue-rotate(0deg); }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; filter: hue-rotate(360deg); }
+}
+
+.meter-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.meter-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: #bbb;
+  font-family: sans-serif;
+}
+
+.meter-track {
+  width: 100%;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.meter-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.rank-meter-fill {
+  background: linear-gradient(90deg, #f37335, #fdc830);
+  box-shadow: 0 0 8px rgba(253, 200, 48, 0.6);
+}
+
+.rate-meter-fill {
+  background: linear-gradient(90deg, #11998e, #38ef7d);
+  box-shadow: 0 0 8px rgba(56, 239, 125, 0.6);
+}
+
+.profile-card-subtext {
+  font-size: 0.75rem;
+  color: #888;
+  font-family: sans-serif;
+}
+
+.profile-stats-summary {
+  font-size: 0.85rem;
+  color: #aaa;
+  font-family: sans-serif;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+/* 練習モード切り替えボタン */
+.practice-mode-btn {
+  background: linear-gradient(135deg, #2a2a3a, #1a1a28);
+  border: 2px solid #555577;
+  color: #ccc;
+  padding: 10px 18px;
+  font-size: 0.95rem;
+  border-radius: 24px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  font-weight: bold;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 6px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+}
+
+.practice-mode-btn:hover {
+  transform: translateY(-2px);
+  border-color: #8888aa;
+}
+
+.practice-mode-btn.active {
+  background: linear-gradient(135deg, #0f3d2e, #1a5c44);
+  border: 2px solid #38ef7d;
+  color: #38ef7d;
+  box-shadow: 0 0 16px rgba(56, 239, 125, 0.45);
+}
+
+.practice-indicator-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-family: sans-serif;
+  letter-spacing: 0;
+  font-weight: bold;
+}
+
+.practice-badge-off {
+  background: #333344;
+  color: #aaa;
+}
+
+.practice-badge-on {
+  background: #38ef7d;
+  color: #042517;
+  animation: pulse-glow 2s infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 4px #38ef7d; }
+  50% { box-shadow: 0 0 12px #38ef7d; }
+}
+
+@media (max-width: 860px) {
+  #start-screen {
+    overflow-y: auto;
+    justify-content: flex-start;
+  }
+  .start-layout-container {
+    flex-direction: column;
+    gap: 20px;
+    padding-top: 20px;
+    padding-bottom: 30px;
+  }
+  .start-profile-widget {
+    width: 90%;
+    max-width: 420px;
+  }
+}
+

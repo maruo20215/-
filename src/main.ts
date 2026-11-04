@@ -16,10 +16,21 @@ import {
   getEffectiveBPM, 
   canUseItem,
   getCalculatedTable, 
+  getAutoPlayMultiplier,
   executeRoulette, 
   calculateGenreMatchup 
 } from './game';
 import { roomManager } from './room';
+import { 
+  getUserProfile, 
+  applyMatchResult, 
+  applyMatchAbort,
+  getExpNeededForRank, 
+  getTierColor,
+  getTierClass,
+  getIsPracticeMode,
+  togglePracticeMode
+} from './rateRank';
 
 const state: GameState = createInitialGameState();
 let playModeResolver: ((mode: 'manual' | 'auto') => void) | null = null;
@@ -189,8 +200,19 @@ export function startGame(target: number) {
     state[p].subHand.forEach(c => { c.isNew = true; });
   });
 
+  const isPractice = !roomManager.currentRoom && getIsPracticeMode();
+  const practiceBadge = document.getElementById('battle-practice-badge');
+  if (practiceBadge) {
+    practiceBadge.style.display = isPractice ? 'block' : 'none';
+  }
+
   const logBox = document.getElementById('battle-log');
-  if (logBox) logBox.innerHTML = '';
+  if (logBox) {
+    logBox.innerHTML = '';
+    if (isPractice) {
+      logBox.innerHTML = '<p style="color:#38ef7d; font-weight:bold;">🥋 練習モード中：この試合ではレートは変動しません。</p>';
+    }
+  }
 
   startNewTurn();
 }
@@ -508,7 +530,6 @@ function askPlayMode(card: SongCard, buffs: ItemCode[], enemyDebuffs: ItemCode[]
       if (dt) {
         detailHtml = dt.map(item => {
           let multiDisplay = item.m;
-          if (card.dan && (item.n === '全良' || item.n.includes('合格'))) multiDisplay += 0.2;
           if (buffs.includes('kanpeki')) {
             if (item.n === '全良' || item.n === '金合格') multiDisplay += 2.0;
             else if (item.n === '不合格') multiDisplay = -0.7;
@@ -519,6 +540,7 @@ function askPlayMode(card: SongCard, buffs: ItemCode[], enemyDebuffs: ItemCode[]
             return `<span style="color:${item.c}">${item.n}: ${item.p}% (x${multiDisplay.toFixed(1)})</span>`;
           }
         }).join('<br>');
+        detailHtml += `<br><span style="color:#38ef7d; font-size:0.75rem;">🛡️ 妨害アイテム完全無効化中</span>`;
       }
     } else {
       const t = getCalculatedTable(card, buffs, enemyDebuffs);
@@ -536,8 +558,8 @@ function askPlayMode(card: SongCard, buffs: ItemCode[], enemyDebuffs: ItemCode[]
 
     if (probBox) probBox.innerHTML = detailHtml;
 
-    // オート倍率: キラキラカードは通常1.2倍 + 今回のボーナス0.2倍で 1.4倍
-    const autoBase = card.dan ? 1.4 : 1.0;
+    // オート倍率: 虹1.5, プラチナ1.4, 金1.3, 銀1.2, 赤1.1, 通常1.0
+    const autoBase = getAutoPlayMultiplier(card.dan);
     const activeCombo = (buffs.includes('danidoujou') && DAN_COMBO_DATA[card.name]) ? DAN_COMBO_DATA[card.name] : card.combo;
     let autoGain = Math.floor(activeCombo * elemMultiplier * autoBase);
     
@@ -813,12 +835,31 @@ async function executeBattle() {
     }
   }
 
-  const p1Debuffs = state.cpu.selectedSubs.map(s => s.code);
-  const cpuDebuffs = state.p1.selectedSubs.map(s => s.code);
+  let p1Debuffs = state.cpu.selectedSubs.map(s => s.code);
+  let cpuDebuffs = state.p1.selectedSubs.map(s => s.code);
 
   let first: 'p1' | 'cpu' = 'p1';
   const p1HasDan = p1Buffs.includes('danidoujou') && !!p1M && !!DAN_COMBO_DATA[p1M.name];
   const cpuHasDan = cpuBuffs.includes('danidoujou') && !!cpuM && !!DAN_COMBO_DATA[cpuM.name];
+
+  // 段位道場発動中は相手からの確率妨害アイテム（でたらめ・きまぐれ）を完全無効化
+  if (p1HasDan) {
+    const blockedP1 = p1Debuffs.filter(c => c === 'detarame' || c === 'kimagure');
+    if (blockedP1.length > 0) {
+      log("YOUの段位道場発動中！相手の確率妨害アイテム（でたらめ/きまぐれ）を無効化！");
+      showEffect("妨害無効！", "p1-slot", "#ffd700");
+      p1Debuffs = p1Debuffs.filter(c => c !== 'detarame' && c !== 'kimagure');
+    }
+  }
+
+  if (cpuHasDan) {
+    const blockedCpu = cpuDebuffs.filter(c => c === 'detarame' || c === 'kimagure');
+    if (blockedCpu.length > 0) {
+      log("相手の段位道場発動中！確率妨害アイテム（でたらめ/きまぐれ）は無効化された！");
+      showEffect("妨害無効！", "cpu-slot", "#ffd700");
+      cpuDebuffs = cpuDebuffs.filter(c => c !== 'detarame' && c !== 'kimagure');
+    }
+  }
 
   if (p1HasDan && !cpuHasDan) {
     first = 'p1';
@@ -1095,16 +1136,72 @@ async function drawCard(player: 'p1' | 'cpu', type: 'main' | 'sub', limit: numbe
 }
 
 export async function surrender() {
+  const isOnline = !!roomManager.currentRoom;
+  const isPractice = !isOnline && getIsPracticeMode();
+
+  let warningNote = '※中断すると敗北扱いとなり、レートが減少します（ランクは変動しません）。';
+  if (isPractice) {
+    warningNote = '※練習モード中のため、レート変動や戦績への加算はありません。';
+  } else if (isOnline) {
+    warningNote = '※中断すると敗北扱いとして戦績に加算されます（レート変動なし）。';
+  }
+
   const confirmed = await showCustomModal(
     '対戦中断',
-    '対戦を中断しますか？',
+    `対戦を中断しますか？<br><span style="color:#ff8888; font-size:0.85rem;">${warningNote}</span>`,
     { confirmText: '中断する', cancelText: '続ける', showCancel: true }
   );
   if (confirmed) {
+    const res = applyMatchAbort(state.target, isOnline, isPractice);
+    playSE('fail');
+    updateMenuProfileUI();
+
+    let resultMsg = '';
+    if (res.isPractice) {
+      resultMsg = `
+        <div style="text-align: left; background: rgba(0,0,0,0.5); border: 1px solid #38ef7d; border-radius: 10px; padding: 12px; margin: 10px 0;">
+          <div style="color: #38ef7d; font-weight: bold;">🥋 練習モード中</div>
+          <div style="font-size: 0.85rem; color: #ccc; margin-top: 4px;">練習モードのため、レート変動および通算戦績への加算はありません。</div>
+        </div>
+      `;
+    } else {
+      resultMsg = `
+        <div style="text-align: left; background: rgba(0,0,0,0.5); border: 1px solid #ff4444; border-radius: 10px; padding: 12px; margin: 10px 0;">
+          <div style="color: #ff5555; font-weight: bold; font-size: 1.05rem; margin-bottom: 6px;">
+            ⚠️ 中断したため敗北扱いとなりました
+          </div>
+          <div style="font-size: 0.9rem; color: #aaa; margin-bottom: 4px;">
+            🎖️ ランク: <strong>変動なし</strong>
+          </div>
+      `;
+      if (!res.isOnline) {
+        resultMsg += `
+          <div style="color: #00d2ff; font-weight: bold;">
+            ⚡ レート: <span style="color:#ff5555; font-size:1.1rem;">${res.rateDelta} PT</span>
+            ${res.demoted ? `<span style="color:#ff4444; font-weight:bold; margin-left:6px;">【降格... ${res.rateTierAfter}帯】</span>` : ''}
+          </div>
+          <div style="font-size: 0.85rem; color: #ccc; margin-top: 3px;">
+            現在階級: <strong>${res.rateTierAfter}</strong> (${res.rateTierAfter === 'X' ? `${res.ratePointsAfter} PT (無制限)` : `${res.ratePointsAfter} / 100`})
+          </div>
+        `;
+      } else {
+        resultMsg += `
+          <div style="font-size: 0.85rem; color: #aaa;">※オンライン対戦のためレート変動はありません。</div>
+        `;
+      }
+      resultMsg += `</div>`;
+    }
+
+    await showCustomModal('対戦中断', resultMsg, { confirmText: 'OK' });
+
     if (roomManager.currentRoom) {
       returnToRoomLobby();
     } else {
-      location.reload();
+      const battleScreen = document.getElementById('battle-screen');
+      const startScreen = document.getElementById('start-screen');
+      if (battleScreen) battleScreen.style.display = 'none';
+      if (startScreen) startScreen.style.display = 'flex';
+      updateMenuProfileUI();
     }
   }
 }
@@ -1114,28 +1211,90 @@ async function endGame(msg: string) {
   playSE('clear');
   await sleep(1500);
 
+  const isWin = msg.includes('YOU WIN');
+  const isOnline = !!roomManager.currentRoom;
+  const isPractice = !isOnline && getIsPracticeMode();
+  const rewards = applyMatchResult(isWin, state.target, isOnline, isPractice);
+  updateMenuProfileUI();
+
+  let rewardHtml = `
+    <div style="background: rgba(0,0,0,0.6); border: 1px solid rgba(255,204,0,0.3); padding: 14px; border-radius: 12px; margin: 14px 0; text-align: left; font-size: 0.95rem; line-height: 1.6;">
+      <div style="color: #ffd200; font-weight: bold; margin-bottom: 4px;">
+        🎖️ ランク: +${rewards.rankPointsGained} PT 
+        ${rewards.rankUpCount > 0 ? `<span style="color:#00ffcc; font-size:1.05rem; font-weight:bold; margin-left:6px;">【ランクアップ！ RANK ${rewards.rankAfter}】</span>` : `(RANK ${rewards.rankAfter})`}
+      </div>
+      <div style="font-size: 0.85rem; color: #ccc;">
+        進行度: ${rewards.rankAfter >= 30 ? 'MAX (無制限)' : `${rewards.rankExpAfter} / ${getExpNeededForRank(rewards.rankAfter)} PT`}
+      </div>
+  `;
+
+  if (!isOnline) {
+    if (rewards.isPractice) {
+      rewardHtml += `
+        <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 10px;">
+          <div style="color: #38ef7d; font-weight: bold;">
+            🥋 練習モード中: レートは保護され変動しません
+          </div>
+          <div style="font-size: 0.85rem; color: #ccc; margin-top: 3px;">
+            現在階級: <strong>${rewards.rateTierAfter}</strong> (${rewards.rateTierAfter === 'X' ? `${rewards.ratePointsAfter} PT (無制限)` : `${rewards.ratePointsAfter} / 100 PT`})
+          </div>
+        </div>
+      `;
+    } else {
+      const rateChangeSign = rewards.rateDelta >= 0 ? `+${rewards.rateDelta}` : `${rewards.rateDelta}`;
+      const rateChangeColor = rewards.rateDelta >= 0 ? '#38ef7d' : '#ff5555';
+      rewardHtml += `
+        <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 10px;">
+          <div style="color: #00d2ff; font-weight: bold;">
+            ⚡ レート: <span style="color:${rateChangeColor}; font-size:1.05rem;">${rateChangeSign} PT</span>
+            ${rewards.promoted ? `<span style="color:#ffcc00; font-weight:bold; margin-left:6px;">【昇格！ ${rewards.rateTierAfter}帯】</span>` : ''}
+            ${rewards.demoted ? `<span style="color:#ff5555; font-weight:bold; margin-left:6px;">【降格... ${rewards.rateTierAfter}帯】</span>` : ''}
+          </div>
+          <div style="font-size: 0.85rem; color: #ccc;">
+            現在階級: <strong>${rewards.rateTierAfter}</strong> (${rewards.rateTierAfter === 'X' ? `${rewards.ratePointsAfter} PT (無制限)` : `${rewards.ratePointsAfter} / 100 PT`})
+          </div>
+        </div>
+      `;
+    }
+  } else {
+    rewardHtml += `
+      <div style="margin-top: 8px; font-size: 0.8rem; color: #aaa; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 6px;">
+        ※オンライン対戦ではレートは変動しません
+      </div>
+    `;
+  }
+  rewardHtml += `</div>`;
+
   if (roomManager.currentRoom) {
     const action = await showCustomModal(
       'ゲーム終了',
-      `<strong>${msg}</strong><br><br>対戦お疲れ様でした！部屋に戻って続けて対戦しますか？`,
+      `<strong style="font-size:1.3rem;">${msg}</strong><br>${rewardHtml}部屋に戻って続けて対戦しますか？`,
       { confirmText: '部屋のロビーに戻る', cancelText: '部屋を退出する', showCancel: true }
     );
     if (action) {
       returnToRoomLobby();
     } else {
       roomManager.leaveRoom();
-      location.reload();
+      const battleScreen = document.getElementById('battle-screen');
+      const startScreen = document.getElementById('start-screen');
+      if (battleScreen) battleScreen.style.display = 'none';
+      if (startScreen) startScreen.style.display = 'flex';
+      updateMenuProfileUI();
     }
   } else {
     const rematch = await showCustomModal(
       'ゲーム終了',
-      `<strong>${msg}</strong><br><br>対戦お疲れ様でした！もう一度遊びますか？`,
+      `<strong style="font-size:1.3rem;">${msg}</strong><br>${rewardHtml}もう一度遊びますか？`,
       { confirmText: 'もう一度遊ぶ', cancelText: 'タイトルへ戻る', showCancel: true }
     );
     if (rematch) {
       startGame(state.target);
     } else {
-      location.reload();
+      const battleScreen = document.getElementById('battle-screen');
+      const startScreen = document.getElementById('start-screen');
+      if (battleScreen) battleScreen.style.display = 'none';
+      if (startScreen) startScreen.style.display = 'flex';
+      updateMenuProfileUI();
     }
   }
 }
@@ -1277,6 +1436,84 @@ export function returnToRoomLobby() {
   showRoomScreen();
 }
 
+export function updateMenuProfileUI() {
+  const profile = getUserProfile();
+
+  // ランク表示 & メーター
+  const rankBadge = document.getElementById('menu-rank-badge');
+  const rankExpText = document.getElementById('menu-rank-exp-text');
+  const rankMeter = document.getElementById('menu-rank-meter-fill');
+
+  if (rankBadge) {
+    rankBadge.innerText = `RANK ${profile.rank}`;
+  }
+  if (rankExpText && rankMeter) {
+    if (profile.rank >= 30) {
+      rankExpText.innerText = 'MAX';
+      rankMeter.style.width = '100%';
+    } else {
+      const needed = getExpNeededForRank(profile.rank);
+      const pct = Math.min(100, Math.max(0, (profile.rankExp / needed) * 100));
+      rankExpText.innerText = `${profile.rankExp} / ${needed}`;
+      rankMeter.style.width = `${pct}%`;
+    }
+  }
+
+  // レート表示 & メーター
+  const rateBadge = document.getElementById('menu-rate-badge');
+  const ratePtText = document.getElementById('menu-rate-pt-text');
+  const rateMeter = document.getElementById('menu-rate-meter-fill');
+
+  if (rateBadge) {
+    rateBadge.innerText = profile.rateTier;
+    const tierClass = getTierClass(profile.rateTier);
+    rateBadge.className = `profile-badge rate-badge ${tierClass}`;
+    rateBadge.style.background = '';
+  }
+
+  if (ratePtText && rateMeter) {
+    if (profile.rateTier === 'X') {
+      ratePtText.innerText = `${profile.ratePoints} PT`;
+      rateMeter.style.width = '100%';
+    } else {
+      const pct = Math.min(100, Math.max(0, profile.ratePoints));
+      ratePtText.innerText = `${profile.ratePoints} / 100`;
+      rateMeter.style.width = `${pct}%`;
+    }
+  }
+
+  // 練習モードUI更新
+  const practiceBtn = document.getElementById('practice-mode-toggle-btn');
+  const practiceBadge = document.getElementById('practice-status-badge');
+  const isPractice = getIsPracticeMode();
+  if (practiceBtn) {
+    if (isPractice) practiceBtn.classList.add('active');
+    else practiceBtn.classList.remove('active');
+  }
+  if (practiceBadge) {
+    if (isPractice) {
+      practiceBadge.className = 'practice-indicator-badge practice-badge-on';
+      practiceBadge.innerText = 'ON (レート保護中)';
+    } else {
+      practiceBadge.className = 'practice-indicator-badge practice-badge-off';
+      practiceBadge.innerText = 'OFF (通常変動)';
+    }
+  }
+
+  // 通算戦績サマリー
+  const statsEl = document.getElementById('menu-stats-summary');
+  if (statsEl) {
+    const winRate = profile.matches > 0 ? Math.round((profile.wins / profile.matches) * 100) : 0;
+    statsEl.innerText = `通算戦績: ${profile.matches}戦 ${profile.wins}勝 (勝率 ${winRate}%)`;
+  }
+}
+
+export function togglePracticeModeAction() {
+  const next = togglePracticeMode();
+  playSE(next ? 'clear' : 'ka');
+  updateMenuProfileUI();
+}
+
 export function leaveRoomToTitle() {
   playSE('ka');
   roomManager.leaveRoom();
@@ -1284,6 +1521,7 @@ export function leaveRoomToTitle() {
   const startScreen = document.getElementById('start-screen');
   if (roomScreen) roomScreen.style.display = 'none';
   if (startScreen) startScreen.style.display = 'flex';
+  updateMenuProfileUI();
 }
 
 function updateRoomLobbyUI() {
@@ -1353,6 +1591,7 @@ export function closeCardList() {
   const list = document.getElementById('card-list-screen');
   if (list) list.style.display = 'none';
   if (start) start.style.display = 'flex';
+  updateMenuProfileUI();
 }
 
 export function openRule() {
@@ -1367,17 +1606,20 @@ export function closeRule() {
   const rule = document.getElementById('rule-screen');
   if (rule) rule.style.display = 'none';
   if (start) start.style.display = 'flex';
+  updateMenuProfileUI();
 }
 
 export function renderCardList() {
   const sortSelect = document.getElementById('sort-select') as HTMLSelectElement | null;
   const genreSelect = document.getElementById('genre-filter-select') as HTMLSelectElement | null;
+  const rankSelect = document.getElementById('rank-filter-select') as HTMLSelectElement | null;
   const danSelect = document.getElementById('dan-filter-select') as HTMLSelectElement | null;
   const searchInput = document.getElementById('search-card-input') as HTMLInputElement | null;
   const countBadge = document.getElementById('card-count-badge');
 
   const sortType = sortSelect ? sortSelect.value : 'rank';
   const genreFilter = genreSelect ? genreSelect.value : 'all';
+  const rankFilter = rankSelect ? rankSelect.value : 'all';
   const danFilter = danSelect ? danSelect.value : 'all';
   const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
 
@@ -1392,6 +1634,22 @@ export function renderCardList() {
   if (genreFilter !== 'all') {
     const targetGenre = Number(genreFilter);
     list = list.filter(c => c.genre === targetGenre);
+  }
+
+  // 難易度フィルター
+  if (rankFilter !== 'all') {
+    list = list.filter(c => {
+      if (rankFilter === 'S+') return c.rank === 'S+' || c.rank === '地力S+';
+      if (rankFilter === 'S') return c.rank === 'S' || c.rank === '地力S';
+      if (rankFilter === 'A+') return c.rank === 'A+' || c.rank === '地力A+';
+      if (rankFilter === 'A') return c.rank === 'A' || c.rank === '地力A';
+      if (rankFilter === 'B') return c.rank === 'B' || c.rank === '地力B';
+      if (rankFilter === 'C') return c.rank === 'C' || c.rank === '地力C';
+      if (rankFilter === 'D') return c.rank === 'D' || c.rank === '地力D';
+      if (rankFilter === 'E') return c.rank === 'E' || c.rank === '地力E';
+      if (rankFilter === 'F') return c.rank === 'F' || c.rank === '地力F';
+      return c.rank === rankFilter;
+    });
   }
 
   // 段位枠フィルター
@@ -1473,9 +1731,11 @@ function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// エンターキーでモーダル確定
+// エンターキーでモーダル確定 & 初期化
 if (typeof window !== 'undefined') {
   window.addEventListener('DOMContentLoaded', () => {
+    updateMenuProfileUI();
+
     const createInput = document.getElementById('create-room-name-input');
     if (createInput) {
       createInput.addEventListener('keydown', (e) => {
@@ -1490,6 +1750,9 @@ if (typeof window !== 'undefined') {
       });
     }
   });
+
+  // スクリプト読み込み直後にも実行
+  setTimeout(updateMenuProfileUI, 50);
 }
 
 // グローバルスコープへバインド (HTML onclick からも直接呼び出し可能に)
@@ -1515,6 +1778,8 @@ declare global {
     resolvePlayMode: typeof resolvePlayMode;
     confirmPhase: typeof confirmPhase;
     executePassPhase: typeof executePassPhase;
+    updateMenuProfileUI: typeof updateMenuProfileUI;
+    togglePracticeModeAction: typeof togglePracticeModeAction;
   }
 }
 
@@ -1538,3 +1803,6 @@ window.renderCardList = renderCardList;
 window.resolvePlayMode = resolvePlayMode;
 window.confirmPhase = confirmPhase;
 window.executePassPhase = executePassPhase;
+window.updateMenuProfileUI = updateMenuProfileUI;
+window.togglePracticeModeAction = togglePracticeModeAction;
+
